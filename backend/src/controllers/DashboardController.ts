@@ -5,14 +5,14 @@ export class DashboardController {
   async index(req: Request, res: Response) {
     try {
       const service = new DashboardService();
-      const dashboard = await service.getData();
+      const result = await service.getData();
 
-      return res.json(dashboard);
+      return res.json(result);
     } catch (error) {
-      console.error("Erro no dashboard:", error);
+      console.error("Erro ao carregar dashboard:", error);
 
       return res.status(500).json({
-        error: "Erro ao carregar dashboard",
+        error: error instanceof Error ? error.message : "Erro ao carregar dashboard.",
       });
     }
   }

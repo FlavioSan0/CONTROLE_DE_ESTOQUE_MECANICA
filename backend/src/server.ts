@@ -1,8 +1,12 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
 import { routes } from "./routes";
 
+dotenv.config();
+
 const app = express();
+const port = Number(process.env.PORT || 3333);
 
 app.use(cors());
 app.use(express.json());
@@ -13,6 +17,6 @@ app.get("/", (req, res) => {
 
 app.use(routes);
 
-app.listen(3333, () => {
-  console.log("Servidor rodando em http://localhost:3333");
+app.listen(port, () => {
+  console.log(`Servidor rodando em http://localhost:${port}`);
 });
