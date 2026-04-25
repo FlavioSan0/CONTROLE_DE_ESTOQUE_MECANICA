@@ -5,9 +5,14 @@ import { routes } from "./routes";
 
 const app = express();
 
+function removeTrailingSlash(url?: string) {
+  return url?.trim().replace(/\/$/, "");
+}
+
 const allowedOrigins = [
   "http://localhost:3000",
-  process.env.FRONTEND_URL,
+  removeTrailingSlash(process.env.FRONTEND_URL),
+  removeTrailingSlash(process.env.FRONTEND_URL_PRODUCTION),
 ].filter(Boolean) as string[];
 
 const corsOptions: cors.CorsOptions = {
@@ -20,7 +25,8 @@ const corsOptions: cors.CorsOptions = {
       return callback(null, true);
     }
 
-    console.warn(`CORS bloqueado para origin: ${origin}`);
+    console.warn("CORS bloqueado para origin:", origin);
+    console.warn("Origins liberadas:", allowedOrigins);
 
     return callback(new Error(`Origin não permitido pelo CORS: ${origin}`));
   },
