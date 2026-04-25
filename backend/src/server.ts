@@ -12,12 +12,17 @@ const allowedOrigins = [
 
 const corsOptions: cors.CorsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
+    if (!origin) {
+      return callback(null, true);
     }
 
-    callback(new Error(`Origem não permitida pelo CORS: ${origin}`));
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn(`CORS bloqueado para origin: ${origin}`);
+
+    return callback(new Error(`Origin não permitido pelo CORS: ${origin}`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -39,4 +44,5 @@ const PORT = Number(process.env.PORT || 3333);
 
 app.listen(PORT, () => {
   console.log(`🚀 Backend rodando na porta ${PORT}`);
+  console.log("Origins liberadas no CORS:", allowedOrigins);
 });
