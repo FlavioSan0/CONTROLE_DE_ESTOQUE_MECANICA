@@ -7,9 +7,11 @@ export class UserController {
     try {
       const service = new UserService();
       const result = await service.list();
+
       return res.json(result);
     } catch (error) {
       console.error("Erro ao listar usuários:", error);
+
       return res.status(500).json({
         error: error instanceof Error ? error.message : "Erro ao listar usuários.",
       });
@@ -36,6 +38,7 @@ export class UserController {
       return res.json(result);
     } catch (error) {
       console.error("Erro ao buscar usuário autenticado:", error);
+
       return res.status(400).json({
         error:
           error instanceof Error
@@ -64,9 +67,9 @@ export class UserController {
       }
 
       if (requester.data.perfil !== "admin") {
-        return res
-          .status(403)
-          .json({ error: "Apenas usuários admin podem gerenciar usuários." });
+        return res.status(403).json({
+          error: "Apenas usuários admin podem gerenciar usuários.",
+        });
       }
 
       const service = new UserService();
@@ -75,6 +78,7 @@ export class UserController {
       return res.status(201).json(result);
     } catch (error) {
       console.error("Erro ao criar usuário:", error);
+
       return res.status(400).json({
         error: error instanceof Error ? error.message : "Erro ao criar usuário.",
       });
@@ -84,9 +88,14 @@ export class UserController {
   async update(req: Request, res: Response) {
     try {
       const requesterEmail = req.user?.email?.trim().toLowerCase();
+      const userIdParam = req.params.id;
 
       if (!requesterEmail) {
         return res.status(401).json({ error: "Usuário não autenticado." });
+      }
+
+      if (!userIdParam || Array.isArray(userIdParam)) {
+        return res.status(400).json({ error: "ID do usuário inválido." });
       }
 
       const requester = await supabase
@@ -100,19 +109,21 @@ export class UserController {
       }
 
       if (requester.data.perfil !== "admin") {
-        return res
-          .status(403)
-          .json({ error: "Apenas usuários admin podem gerenciar usuários." });
+        return res.status(403).json({
+          error: "Apenas usuários admin podem gerenciar usuários.",
+        });
       }
 
       const service = new UserService();
-      const result = await service.update(req.params.id, req.body);
+      const result = await service.update(userIdParam, req.body);
 
       return res.json(result);
     } catch (error) {
       console.error("Erro ao atualizar usuário:", error);
+
       return res.status(400).json({
-        error: error instanceof Error ? error.message : "Erro ao atualizar usuário.",
+        error:
+          error instanceof Error ? error.message : "Erro ao atualizar usuário.",
       });
     }
   }
@@ -137,6 +148,7 @@ export class UserController {
       return res.json(result);
     } catch (error) {
       console.error("Erro ao finalizar primeiro acesso:", error);
+
       return res.status(400).json({
         error:
           error instanceof Error
