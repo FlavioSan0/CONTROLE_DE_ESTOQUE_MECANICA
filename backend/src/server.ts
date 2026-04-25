@@ -1,22 +1,32 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { routes } from "./routes";
 
-dotenv.config();
-
 const app = express();
-const port = Number(process.env.PORT || 3333);
 
-app.use(cors());
+const corsOptions: cors.CorsOptions = {
+  origin: "http://localhost:3000",
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
+
+// Em vez de app.options("*", cors())
+app.options(/.*/, cors(corsOptions));
+
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.json({ message: "API do sistema de estoque rodando." });
+app.get("/health", (_req, res) => {
+  return res.json({ ok: true });
 });
 
 app.use(routes);
 
-app.listen(port, () => {
-  console.log(`Servidor rodando em http://localhost:${port}`);
+const PORT = Number(process.env.PORT || 3333);
+
+app.listen(PORT, () => {
+  console.log(`🚀 Backend rodando em http://localhost:${PORT}`);
 });

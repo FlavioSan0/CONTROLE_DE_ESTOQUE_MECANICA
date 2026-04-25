@@ -3,6 +3,8 @@ import { supabase } from "../utils/supabase";
 type ProductFilters = {
   search?: string;
   status?: string;
+  categoria?: string;
+  fornecedor?: string;
 };
 
 export class ProductRepository {
@@ -22,7 +24,15 @@ export class ProductRepository {
       query = query.eq("status", filters.status);
     }
 
-    const { data, error } = await query.order("nome", { ascending: true });
+    if (filters?.categoria && filters.categoria !== "todas") {
+      query = query.eq("categoria", filters.categoria);
+    }
+
+    if (filters?.fornecedor && filters.fornecedor !== "todos") {
+      query = query.eq("fornecedor", filters.fornecedor);
+    }
+
+    const { data, error } = await query.order("codigo", { ascending: true });
 
     if (error) {
       throw new Error(`Erro ao buscar produtos: ${error.message}`);
@@ -55,6 +65,44 @@ export class ProductRepository {
     }
 
     return data;
+  }
+
+  async getCreateOptions() {
+    const [categorias, fornecedores, unidades, localizacoes] = await Promise.all([
+      supabase.from("categorias").select("id, nome").eq("ativo", true).order("nome"),
+      supabase.from("fornecedores").select("id, nome").eq("ativo", true).order("nome"),
+      supabase.from("unidades_medida").select("id, sigla, descricao").order("sigla"),
+      supabase.from("localizacoes_estoque").select("id, codigo, descricao").eq("ativo", true).order("codigo"),
+    ]);
+
+    if (categorias.error) {
+      throw new Error(`Erro ao buscar categorias: ${categorias.error.message}`);
+    }
+
+    if (fornecedores.error) {
+      throw new Error(`Erro ao buscar fornecedores: ${fornecedores.error.message}`);
+    }
+
+    if (unidades.error) {
+      throw new Error(`Erro ao buscar unidades de medida: ${unidades.error.message}`);
+    }
+
+    if (localizacoes.error) {
+      throw new Error(`Erro ao buscar localizações: ${localizacoes.error.message}`);
+    }
+
+    return {
+      categorias: categorias.data ?? [],
+      fornecedores: fornecedores.data ?? [],
+      unidadesMedida: (unidades.data ?? []).map((item) => ({
+        id: item.id,
+        nome: `${item.sigla} - ${item.descricao}`,
+      })),
+      localizacoes: (localizacoes.data ?? []).map((item) => ({
+        id: item.id,
+        nome: `${item.codigo} - ${item.descricao}`,
+      })),
+    };
   }
 
   async create(payload: Record<string, unknown>) {
