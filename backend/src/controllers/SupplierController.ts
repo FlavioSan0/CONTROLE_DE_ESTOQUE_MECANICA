@@ -1,82 +1,66 @@
 import { Request, Response } from "express";
 import { SupplierService } from "../services/SupplierService";
 
-function getParamAsString(param: string | string[] | undefined): string {
-  if (Array.isArray(param)) return param[0] ?? "";
-  return param ?? "";
-}
-
 export class SupplierController {
-  async index(req: Request, res: Response) {
+  static async list(_request: Request, response: Response) {
     try {
-      const service = new SupplierService();
-
-      const result = await service.list({
-        search: typeof req.query.search === "string" ? req.query.search : undefined,
-        cidade: typeof req.query.cidade === "string" ? req.query.cidade : undefined,
-      });
-
-      return res.json(result);
+      const suppliers = await SupplierService.list();
+      return response.json(suppliers);
     } catch (error) {
-      console.error("Erro ao listar fornecedores:", error);
-      return res.status(500).json({
-        error: error instanceof Error ? error.message : "Erro ao listar fornecedores.",
-      });
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível listar os fornecedores.";
+
+      return response.status(500).json({ error: message });
     }
   }
 
-  async show(req: Request, res: Response) {
+  static async create(request: Request, response: Response) {
     try {
-      const id = getParamAsString(req.params.id);
-      const service = new SupplierService();
-      const result = await service.findById(id);
-      return res.json(result);
+      const supplier = await SupplierService.create(request.body);
+      return response.status(201).json(supplier);
     } catch (error) {
-      console.error("Erro ao buscar fornecedor:", error);
-      return res.status(400).json({
-        error: error instanceof Error ? error.message : "Erro ao buscar fornecedor.",
-      });
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível criar o fornecedor.";
+
+      return response.status(400).json({ error: message });
     }
   }
 
-  async create(req: Request, res: Response) {
+  static async update(request: Request, response: Response) {
     try {
-      const service = new SupplierService();
-      const result = await service.create(req.body);
-      return res.status(201).json(result);
+      const id = Number(request.params.id);
+
+      const supplier = await SupplierService.update(id, request.body);
+
+      return response.json(supplier);
     } catch (error) {
-      console.error("Erro ao criar fornecedor:", error);
-      return res.status(400).json({
-        error: error instanceof Error ? error.message : "Erro ao criar fornecedor.",
-      });
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar o fornecedor.";
+
+      return response.status(400).json({ error: message });
     }
   }
 
-  async update(req: Request, res: Response) {
+  static async delete(request: Request, response: Response) {
     try {
-      const id = getParamAsString(req.params.id);
-      const service = new SupplierService();
-      const result = await service.update(id, req.body);
-      return res.json(result);
-    } catch (error) {
-      console.error("Erro ao atualizar fornecedor:", error);
-      return res.status(400).json({
-        error: error instanceof Error ? error.message : "Erro ao atualizar fornecedor.",
-      });
-    }
-  }
+      const id = Number(request.params.id);
 
-  async inactivate(req: Request, res: Response) {
-    try {
-      const id = getParamAsString(req.params.id);
-      const service = new SupplierService();
-      const result = await service.inactivate(id);
-      return res.json(result);
+      const result = await SupplierService.delete(id);
+
+      return response.json(result);
     } catch (error) {
-      console.error("Erro ao inativar fornecedor:", error);
-      return res.status(400).json({
-        error: error instanceof Error ? error.message : "Erro ao inativar fornecedor.",
-      });
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível excluir o fornecedor.";
+
+      return response.status(400).json({ error: message });
     }
   }
 }

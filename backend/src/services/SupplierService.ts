@@ -1,92 +1,214 @@
-import { SupplierRepository } from "../repositories/SupplierRepository";
+import { supabase } from "../lib/supabase";
 
-type ListFilters = {
-  search?: string;
-  cidade?: string;
-};
-
-type SaveSupplierInput = {
-  nome: string;
-  nome_fantasia?: string;
-  cnpj?: string;
-  email?: string;
-  telefone?: string;
-  whatsapp?: string;
-  contato_responsavel?: string;
-  cidade?: string;
-  estado?: string;
-  observacoes?: string;
+export type SupplierPayload = {
+  nome?: string;
+  nomeFantasia?: string | null;
+  nome_fantasia?: string | null;
+  cnpj?: string | null;
+  email?: string | null;
+  telefone?: string | null;
+  whatsapp?: string | null;
+  contatoResponsavel?: string | null;
+  contato_responsavel?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  observacoes?: string | null;
   ativo?: boolean;
 };
 
+function cleanText(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text.length > 0 ? text : null;
+}
+
+function mapSupplierFromDatabase(item: any) {
+  return {
+    id: item.id,
+    nome: item.nome ?? "",
+    nomeFantasia: item.nome_fantasia ?? "",
+    cnpj: item.cnpj ?? "",
+    email: item.email ?? "",
+    telefone: item.telefone ?? "",
+    whatsapp: item.whatsapp ?? "",
+    contatoResponsavel: item.contato_responsavel ?? "",
+    cidade: item.cidade ?? "",
+    estado: item.estado ?? "",
+    observacoes: item.observacoes ?? "",
+    ativo: item.ativo ?? true,
+  };
+}
+
+function supplierSelectFields() {
+  return `
+    id,
+    nome,
+    nome_fantasia,
+    cnpj,
+    email,
+    telefone,
+    whatsapp,
+    contato_responsavel,
+    cidade,
+    estado,
+    observacoes,
+    ativo
+  `;
+}
+
+function buildCreatePayload(payload: SupplierPayload) {
+  return {
+    nome: cleanText(payload.nome),
+    nome_fantasia: cleanText(payload.nomeFantasia ?? payload.nome_fantasia),
+    cnpj: cleanText(payload.cnpj),
+    email: cleanText(payload.email)?.toLowerCase() ?? null,
+    telefone: cleanText(payload.telefone),
+    whatsapp: cleanText(payload.whatsapp),
+    contato_responsavel: cleanText(
+      payload.contatoResponsavel ?? payload.contato_responsavel
+    ),
+    cidade: cleanText(payload.cidade),
+    estado: cleanText(payload.estado)?.toUpperCase() ?? null,
+    observacoes: cleanText(payload.observacoes),
+    ativo: payload.ativo ?? true,
+  };
+}
+
+function buildUpdatePayload(payload: SupplierPayload) {
+  const updatePayload: Record<string, unknown> = {};
+
+  if (payload.nome !== undefined) {
+    updatePayload.nome = cleanText(payload.nome);
+  }
+
+  if (payload.nomeFantasia !== undefined || payload.nome_fantasia !== undefined) {
+    updatePayload.nome_fantasia = cleanText(
+      payload.nomeFantasia ?? payload.nome_fantasia
+    );
+  }
+
+  if (payload.cnpj !== undefined) {
+    updatePayload.cnpj = cleanText(payload.cnpj);
+  }
+
+  if (payload.email !== undefined) {
+    updatePayload.email = cleanText(payload.email)?.toLowerCase() ?? null;
+  }
+
+  if (payload.telefone !== undefined) {
+    updatePayload.telefone = cleanText(payload.telefone);
+  }
+
+  if (payload.whatsapp !== undefined) {
+    updatePayload.whatsapp = cleanText(payload.whatsapp);
+  }
+
+  if (
+    payload.contatoResponsavel !== undefined ||
+    payload.contato_responsavel !== undefined
+  ) {
+    updatePayload.contato_responsavel = cleanText(
+      payload.contatoResponsavel ?? payload.contato_responsavel
+    );
+  }
+
+  if (payload.cidade !== undefined) {
+    updatePayload.cidade = cleanText(payload.cidade);
+  }
+
+  if (payload.estado !== undefined) {
+    updatePayload.estado = cleanText(payload.estado)?.toUpperCase() ?? null;
+  }
+
+  if (payload.observacoes !== undefined) {
+    updatePayload.observacoes = cleanText(payload.observacoes);
+  }
+
+  if (payload.ativo !== undefined) {
+    updatePayload.ativo = payload.ativo;
+  }
+
+  return updatePayload;
+}
+
 export class SupplierService {
-  private repository = new SupplierRepository();
+  static async list() {
+    const { data, error } = await supabase
+      .from("fornecedores")
+      .select(supplierSelectFields())
+      .order("nome", { ascending: true });
 
-  async list(filters?: ListFilters) {
-    return this.repository.list(filters);
-  }
-
-  async findById(id: string) {
-    if (!id) throw new Error("ID do fornecedor é obrigatório.");
-    return this.repository.findById(id);
-  }
-
-  async create(data: SaveSupplierInput) {
-    const payload = this.normalizeSupplierPayload(data);
-
-    if (!payload.nome) {
-      throw new Error("O nome do fornecedor é obrigatório.");
+    if (error) {
+      throw new Error(`Erro ao listar fornecedores: ${error.message}`);
     }
 
-    return this.repository.create(payload);
+    return (data ?? []).map(mapSupplierFromDatabase);
   }
 
-  async update(id: string, data: SaveSupplierInput) {
-    if (!id) throw new Error("ID do fornecedor é obrigatório.");
+  static async create(payload: SupplierPayload) {
+    const dbPayload = buildCreatePayload(payload);
 
-    const payload = this.normalizeSupplierPayload(data);
-
-    if (!payload.nome) {
-      throw new Error("O nome do fornecedor é obrigatório.");
+    if (!dbPayload.nome) {
+      throw new Error("Informe o nome do fornecedor.");
     }
 
-    return this.repository.update(id, payload);
+    const { data, error } = await supabase
+      .from("fornecedores")
+      .insert(dbPayload)
+      .select(supplierSelectFields())
+      .single();
+
+    if (error) {
+      throw new Error(`Erro ao criar fornecedor: ${error.message}`);
+    }
+
+    return mapSupplierFromDatabase(data);
   }
 
-  async inactivate(id: string) {
-    if (!id) throw new Error("ID do fornecedor é obrigatório.");
-    return this.repository.inactivate(id);
+  static async update(id: number, payload: SupplierPayload) {
+    if (!Number.isFinite(id)) {
+      throw new Error("ID do fornecedor inválido.");
+    }
+
+    const dbPayload = buildUpdatePayload(payload);
+
+    if (Object.keys(dbPayload).length === 0) {
+      throw new Error("Nenhum dado enviado para atualizar.");
+    }
+
+    if ("nome" in dbPayload && !dbPayload.nome) {
+      throw new Error("Informe o nome do fornecedor.");
+    }
+
+    const { data, error } = await supabase
+      .from("fornecedores")
+      .update(dbPayload)
+      .eq("id", id)
+      .select(supplierSelectFields())
+      .single();
+
+    if (error) {
+      throw new Error(`Erro ao atualizar fornecedor: ${error.message}`);
+    }
+
+    return mapSupplierFromDatabase(data);
   }
 
-  private normalizeSupplierPayload(data: SaveSupplierInput): SaveSupplierInput {
-    const nome = data.nome?.trim() ?? "";
-    const nome_fantasia = data.nome_fantasia?.trim() || undefined;
-    const cnpj = data.cnpj?.trim() || undefined;
-    const email = data.email?.trim() || undefined;
-    const telefone = data.telefone?.trim() || undefined;
-    const whatsapp = data.whatsapp?.trim() || undefined;
-    const contato_responsavel = data.contato_responsavel?.trim() || undefined;
-    const cidade = data.cidade?.trim() || undefined;
-    const observacoes = data.observacoes?.trim() || undefined;
+  static async delete(id: number) {
+    if (!Number.isFinite(id)) {
+      throw new Error("ID do fornecedor inválido.");
+    }
 
-    let estado = data.estado?.trim().toUpperCase() || undefined;
+    const { error } = await supabase
+      .from("fornecedores")
+      .delete()
+      .eq("id", id);
 
-    if (estado && estado.length !== 2) {
-      throw new Error("O campo estado deve conter a UF com 2 letras, ex.: RN.");
+    if (error) {
+      throw new Error(`Erro ao excluir fornecedor: ${error.message}`);
     }
 
     return {
-      nome,
-      nome_fantasia,
-      cnpj,
-      email,
-      telefone,
-      whatsapp,
-      contato_responsavel,
-      cidade,
-      estado,
-      observacoes,
-      ativo: data.ativo ?? true,
+      message: "Fornecedor excluído com sucesso.",
     };
   }
 }
