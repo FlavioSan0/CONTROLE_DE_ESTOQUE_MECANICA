@@ -1,41 +1,40 @@
 import { Request, Response } from "express";
-import { AdminMaintenanceService } from "../services/AdminMaintenanceService";
+import {
+  AdminMaintenanceService,
+  type ClearTarget,
+} from "../services/AdminMaintenanceService";
 
-export const AdminMaintenanceController = {
-  async clearData(request: Request, response: Response) {
+export class AdminMaintenanceController {
+  static async clearData(request: Request, response: Response) {
     try {
-      const body = request.body ?? {};
-
-      const { target, confirmacao, senhaAdmin } = body;
+      const { target, confirmacao, adminPassword } = request.body ?? {};
 
       if (!target) {
         return response.status(400).json({
-          error: "Informe o alvo da limpeza.",
+          error: "Tipo de limpeza não informado.",
         });
       }
 
       if (!confirmacao) {
         return response.status(400).json({
-          error: "Informe a frase de confirmação.",
+          error: "Confirmação não informada.",
         });
       }
 
-      if (!senhaAdmin) {
+      if (!adminPassword) {
         return response.status(400).json({
-          error: "Informe a senha do administrador.",
+          error: "Senha do admin não informada.",
         });
       }
 
-      const result = await AdminMaintenanceService.clearData({
-        target,
+      const result = await AdminMaintenanceService.clearData(
+        target as ClearTarget,
         confirmacao,
-        senhaAdmin,
-      });
+        adminPassword
+      );
 
       return response.json(result);
     } catch (error) {
-      console.error("Erro ao limpar dados:", error);
-
       const message =
         error instanceof Error
           ? error.message
@@ -45,5 +44,5 @@ export const AdminMaintenanceController = {
         error: message,
       });
     }
-  },
-};
+  }
+}

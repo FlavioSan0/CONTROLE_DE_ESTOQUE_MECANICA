@@ -33,6 +33,17 @@ function validateConfirmation(target: ClearTarget, confirmacao: string) {
   }
 }
 
+function validateAdminPassword(adminPassword: string) {
+  if (!adminPassword.trim()) {
+    throw new Error("Senha do admin obrigatória.");
+  }
+
+  /**
+   * Por enquanto estamos apenas exigindo que a senha seja informada.
+   * Depois podemos evoluir para validar a senha real do admin.
+   */
+}
+
 async function deleteAllFromTable(tableName: string) {
   const { error } = await supabase
     .from(tableName)
@@ -47,9 +58,11 @@ async function deleteAllFromTable(tableName: string) {
 export class AdminMaintenanceService {
   static async clearData(
     target: ClearTarget,
-    confirmacao: string
+    confirmacao: string,
+    adminPassword: string
   ): Promise<ClearResult> {
     validateConfirmation(target, confirmacao);
+    validateAdminPassword(adminPassword);
 
     switch (target) {
       case "produtos": {

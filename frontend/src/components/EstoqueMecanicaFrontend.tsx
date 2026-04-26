@@ -136,12 +136,6 @@ import {
   getMovements,
 } from "../services/movements.service";
 
-type Supplier = {
-  id: number;
-  nome: string;
-  contato: string;
-  cidade: string;
-};
 
 type PageKey =
   | "dashboard"
@@ -4853,6 +4847,20 @@ function SuppliersPage({ isAdmin }: { isAdmin: boolean }) {
 }, []);
 
 useEffect(() => {
+  let isMounted = true;
+
+  const timer = window.setTimeout(() => {
+    if (isMounted) {
+      void loadSuppliers();
+    }
+  }, 0);
+
+  return () => {
+    isMounted = false;
+    window.clearTimeout(timer);
+  };
+}, [loadSuppliers]);
+useEffect(() => {
   const timeoutId = window.setTimeout(() => {
     void loadSuppliers();
   }, 0);
@@ -5739,6 +5747,21 @@ function CustomersPage({ isAdmin }: { isAdmin: boolean }) {
     setLoadingCustomers(false);
   }
 }, []);
+
+useEffect(() => {
+  let isMounted = true;
+
+  const timer = window.setTimeout(() => {
+    if (isMounted) {
+      void loadCustomers();
+    }
+  }, 0);
+
+  return () => {
+    isMounted = false;
+    window.clearTimeout(timer);
+  };
+}, [loadCustomers]);
 
 useEffect(() => {
   const timeoutId = window.setTimeout(() => {
