@@ -1,18 +1,43 @@
 "use client";
 
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+
+import {
+  clearAdminData,
+  type ClearTarget,
+} from "../services/admin-maintenance.service";
+
+
+import {
+  createCustomer,
+  deleteCustomer,
+  listCustomers,
+  updateCustomer,
+  type Customer,
+} from "../services/customers.service";
+
+import {
+  createSupplier,
+  deleteSupplier,
+  listSuppliers,
+  updateSupplier,
+} from "../services/suppliers.service";
+
 import {
   exportCsv,
   formatCurrencyForCsv,
   formatDateTimeForCsv,
   todayFileDate,
 } from "../utils/exportCsv";
+
 import ProductDetailsModal from "./ProductDetailsModal";
 import { getProductDetails } from "../services/product-details.service";
 import type { ProdutoDetalhes } from "../types/product-details";
+
 import { getUsers, createUser, updateUser } from "../services/users.service";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
+
 import type {
   CreateProductPayload,
   CreateUserPayload,
@@ -24,10 +49,12 @@ import type {
   UpdateUserPayload,
   UsuarioSistema,
 } from "../types";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+
 import {
   Table,
   TableBody,
@@ -36,6 +63,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
 import {
   Select,
   SelectContent,
@@ -43,7 +71,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+
 import {
   Dialog,
   DialogContent,
@@ -52,8 +82,10 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
   Wrench,
   Package,
@@ -66,13 +98,11 @@ import {
   TriangleAlert,
   Menu,
   LogOut,
-  Pencil,
   Plus,
   Filter,
   Warehouse,
   LockKeyhole,
   ShieldCheck,
-  Ban,
   ChevronLeft,
   ChevronRight,
   ArrowUpAZ,
@@ -81,10 +111,11 @@ import {
   Mail,
   BadgeCheck,
   MapPin,
-  Phone,
   ChevronDown,
-  Building2,
+  UsersRound,
+  IdCard,
 } from "lucide-react";
+
 import {
   createProduct,
   getProductById,
@@ -93,7 +124,9 @@ import {
   inactivateProduct,
   updateProduct,
 } from "../services/products.service";
+
 import { getDashboard } from "../services/dashboard.service";
+
 import {
   createEntryWithInvoice,
   createExit,
@@ -119,6 +152,7 @@ type PageKey =
   | "usuario"
   | "usuarios"
   | "fornecedores"
+  | "clientes"
   | "relatorios";
 
 type NavItem = {
@@ -137,20 +171,15 @@ type ProductSortKey =
 
 type SortDirection = "asc" | "desc";
 
-const suppliersSeed: Supplier[] = [
-  { id: 1, nome: "Auto Peças RN", contato: "(84) 99999-0001", cidade: "Natal/RN" },
-  { id: 2, nome: "Distribuidora Nordeste", contato: "(84) 99999-0002", cidade: "Parnamirim/RN" },
-  { id: 3, nome: "Peças Brasil", contato: "(84) 99999-0003", cidade: "Macaíba/RN" },
-];
-
 const navItems: NavItem[] = [
   { key: "dashboard", label: "Dashboard", icon: BarChart3 },
   { key: "produtos", label: "Produtos", icon: Package },
   { key: "entradas", label: "Entradas", icon: ArrowDownCircle },
   { key: "saidas", label: "Saídas", icon: ArrowUpCircle },
   { key: "movimentacoes", label: "Movimentações", icon: ClipboardList },
-  { key: "usuarios", label: "Usuários", icon: Users },
+  { key: "clientes", label: "Clientes", icon: UsersRound },
   { key: "fornecedores", label: "Fornecedores", icon: Warehouse },
+  { key: "usuarios", label: "Usuários", icon: Users },
   { key: "relatorios", label: "Relatórios", icon: Wrench },
 ];
 
@@ -2282,14 +2311,219 @@ function SortButton({
   );
 }
 
+function AdminClearDataCard({
+  isAdmin,
+  target,
+  title,
+  description,
+  confirmationText,
+  onCleared,
+}: {
+  isAdmin: boolean;
+  target: ClearTarget;
+  title: string;
+  description: string;
+  confirmationText: string;
+  onCleared?: () => Promise<void> | void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirmacao, setConfirmacao] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  if (!isAdmin) return null;
+
+  function resetDialogState() {
+    setConfirmacao("");
+    setAdminPassword("");
+    setErrorMessage("");
+  }
+
+  async function handleClearData() {
+    if (confirmacao !== confirmationText) {
+      setErrorMessage(`Digite exatamente: ${confirmationText}`);
+      return;
+    }
+
+    if (!adminPassword.trim()) {
+      setErrorMessage("Informe a senha do admin para confirmar a limpeza.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      const result = await clearAdminData(
+        target,
+        confirmacao,
+        adminPassword
+      );
+
+      setSuccessMessage(result.message);
+      setOpen(false);
+      resetDialogState();
+
+      await onCleared?.();
+    } catch (error: unknown) {
+      console.error("Erro ao executar limpeza:", error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Não foi possível executar a limpeza.";
+
+      setErrorMessage(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card className="overflow-hidden rounded-3xl border border-red-200 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.06)]">
+      <CardHeader className="border-b border-red-100 bg-gradient-to-r from-red-50 via-white to-white pb-4">
+        <CardTitle className="text-red-700">Área administrativa</CardTitle>
+        <p className="text-sm text-zinc-600">
+          Esta ação aparece somente para administradores e exige senha para confirmação.
+        </p>
+      </CardHeader>
+
+      <CardContent className="space-y-4 p-6">
+        <div className="rounded-3xl border border-red-100 bg-red-50/70 p-5">
+          <h3 className="text-base font-bold text-red-700">{title}</h3>
+
+          <p className="mt-2 text-sm leading-6 text-zinc-700">
+            {description}
+          </p>
+
+          {successMessage ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {successMessage}
+            </div>
+          ) : null}
+
+          {errorMessage && !open ? (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <Button
+            type="button"
+            onClick={() => {
+              setOpen(true);
+              setErrorMessage("");
+              setSuccessMessage("");
+              setConfirmacao("");
+              setAdminPassword("");
+            }}
+            className="mt-5 rounded-2xl bg-red-600 font-semibold text-white hover:bg-red-700"
+          >
+            {title}
+          </Button>
+        </div>
+
+        <Dialog
+          open={open}
+          onOpenChange={(value) => {
+            setOpen(value);
+
+            if (!value) {
+              resetDialogState();
+            }
+          }}
+        >
+          <DialogContent className="w-[95vw] max-w-md overflow-hidden rounded-3xl border-red-200 bg-white p-0">
+            <DialogHeader className="border-b border-red-100 bg-red-50 px-6 py-5">
+              <DialogTitle className="text-red-700">{title}</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                Esta ação é permanente. Para continuar, confirme a frase de segurança
+                e informe a senha atual do administrador.
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  Digite exatamente{" "}
+                  <span className="font-bold text-red-700">
+                    {confirmationText}
+                  </span>
+                </Label>
+
+                <Input
+                  value={confirmacao}
+                  onChange={(e) => setConfirmacao(e.target.value)}
+                  placeholder={confirmationText}
+                  className="h-11 rounded-2xl border-zinc-300 bg-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Senha do admin</Label>
+
+                <Input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Digite sua senha atual"
+                  autoComplete="current-password"
+                  className="h-11 rounded-2xl border-zinc-300 bg-white"
+                />
+              </div>
+
+              {errorMessage ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {errorMessage}
+                </div>
+              ) : null}
+            </div>
+
+            <DialogFooter className="flex-col gap-2 border-t border-zinc-200 px-6 py-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                disabled={loading}
+                className="w-full rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100 sm:w-auto"
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                onClick={handleClearData}
+                disabled={
+                  loading ||
+                  confirmacao !== confirmationText ||
+                  !adminPassword.trim()
+                }
+                className="w-full rounded-2xl bg-red-600 font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                {loading ? "Validando e limpando..." : "Confirmar limpeza"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ProductsPage({
   products,
   loading,
   onCreated,
+  isAdmin,
 }: {
   products: Produto[];
   loading: boolean;
   onCreated: () => Promise<void>;
+  isAdmin: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
@@ -2381,16 +2615,16 @@ function ProductsPage({
   }
 
   function handleSort(column: ProductSortKey) {
-  setCurrentPage(1);
+    setCurrentPage(1);
 
-  if (sortKey === column) {
-    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    return;
+    if (sortKey === column) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(column);
+    setSortDirection("asc");
   }
-
-  setSortKey(column);
-  setSortDirection("asc");
-}
 
   async function handleConfirmInactivate() {
     if (!productToInactivate) return;
@@ -2463,30 +2697,10 @@ function ProductsPage({
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Total de produtos"
-          value={totalProducts}
-          subtitle="Itens carregados no sistema"
-          icon={Package}
-        />
-        <StatCard
-          title="Resultados filtrados"
-          value={totalFiltered}
-          subtitle="Itens conforme filtros atuais"
-          icon={Filter}
-        />
-        <StatCard
-          title="Produtos em alerta"
-          value={totalAlerts}
-          subtitle="Abaixo do estoque mínimo"
-          icon={TriangleAlert}
-        />
-        <StatCard
-          title="Categorias ativas"
-          value={totalCategories}
-          subtitle="Categorias com itens cadastrados"
-          icon={Warehouse}
-        />
+        <StatCard title="Total de produtos" value={totalProducts} subtitle="Itens carregados no sistema" icon={Package} />
+        <StatCard title="Resultados filtrados" value={totalFiltered} subtitle="Itens conforme filtros atuais" icon={Filter} />
+        <StatCard title="Produtos em alerta" value={totalAlerts} subtitle="Abaixo do estoque mínimo" icon={TriangleAlert} />
+        <StatCard title="Categorias ativas" value={totalCategories} subtitle="Categorias com itens cadastrados" icon={Warehouse} />
       </div>
 
       <Card className={premiumCardClass("overflow-hidden")}>
@@ -2505,11 +2719,11 @@ function ProductsPage({
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                   <Input
                     value={query}
-                          onChange={(e) => {
-                            setQuery(e.target.value);
-                            setCurrentPage(1);
-                          }}                    
-                          placeholder="Buscar por nome, código, marca ou fornecedor"
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    placeholder="Buscar por nome, código, marca ou fornecedor"
                     className="h-12 rounded-2xl border-zinc-300 bg-white pl-9 shadow-sm"
                   />
                 </div>
@@ -2567,6 +2781,7 @@ function ProductsPage({
                     setSupplierFilter("todos");
                     setSortKey("codigo");
                     setSortDirection("asc");
+                    setCurrentPage(1);
                   }}
                 >
                   Limpar filtros
@@ -2604,62 +2819,14 @@ function ProductsPage({
             <Table>
               <TableHeader>
                 <TableRow className="border-zinc-200 bg-zinc-50/90 hover:bg-zinc-50/90">
-                  <TableHead className="text-zinc-600">
-                    <SortButton
-                      label="Código"
-                      column="codigo"
-                      sortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead className="text-zinc-600">
-                    <SortButton
-                      label="Produto"
-                      column="nome"
-                      sortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead className="text-zinc-600">
-                    <SortButton
-                      label="Categoria"
-                      column="categoria"
-                      sortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
+                  <TableHead><SortButton label="Código" column="codigo" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
+                  <TableHead><SortButton label="Produto" column="nome" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
+                  <TableHead><SortButton label="Categoria" column="categoria" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
                   <TableHead className="text-zinc-600">Marca</TableHead>
-                  <TableHead className="text-zinc-600">
-                    <SortButton
-                      label="Fornecedor"
-                      column="fornecedor"
-                      sortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
+                  <TableHead><SortButton label="Fornecedor" column="fornecedor" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
                   <TableHead className="text-zinc-600">Localização</TableHead>
-                  <TableHead className="text-zinc-600">
-                    <SortButton
-                      label="Estoque"
-                      column="estoqueAtual"
-                      sortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead className="text-zinc-600">
-                    <SortButton
-                      label="Preço"
-                      column="preco"
-                      sortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
+                  <TableHead><SortButton label="Estoque" column="estoqueAtual" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
+                  <TableHead><SortButton label="Preço" column="preco" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
                   <TableHead className="text-zinc-600">Status</TableHead>
                   <TableHead className="text-right text-zinc-600">Ações</TableHead>
                 </TableRow>
@@ -2678,13 +2845,9 @@ function ProductsPage({
                     <TableCell className="font-medium text-zinc-900">R$ {item.preco.toFixed(2)}</TableCell>
                     <TableCell>
                       {item.status === "baixo" ? (
-                        <Badge className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-50">
-                          Baixo
-                        </Badge>
+                        <Badge className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-50">Baixo</Badge>
                       ) : (
-                        <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-                          Normal
-                        </Badge>
+                        <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">Normal</Badge>
                       )}
                     </TableCell>
                     <TableCell>
@@ -2720,13 +2883,7 @@ function ProductsPage({
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                >
+                <Button variant="outline" size="sm" className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100" onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1}>
                   <ChevronLeft className="mr-1 h-4 w-4" />
                   Anterior
                 </Button>
@@ -2735,13 +2892,7 @@ function ProductsPage({
                   Página {currentPage} de {totalPages}
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                >
+                <Button variant="outline" size="sm" className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100" onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages}>
                   Próxima
                   <ChevronRight className="ml-1 h-4 w-4" />
                 </Button>
@@ -2769,6 +2920,15 @@ function ProductsPage({
         }}
       />
 
+      <AdminClearDataCard
+        isAdmin={isAdmin}
+        target="produtos"
+        title="Limpar produtos"
+        description="Remove todos os produtos cadastrados. Para evitar erro de vínculo, as movimentações também serão removidas antes dos produtos."
+        confirmationText="LIMPAR PRODUTOS"
+        onCleared={onCreated}
+      />
+
       <ProductDetailsModal
         open={detailsOpen}
         loading={detailsLoading}
@@ -2793,8 +2953,10 @@ function ProductsPage({
 
 function EntriesPage({
   onCreated,
+  isAdmin,
 }: {
   onCreated: () => Promise<void>;
+  isAdmin: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -3346,7 +3508,7 @@ function EntriesPage({
                       (item.natureza ?? "").toLowerCase().includes("entrada") ||
                       item.tipo.toLowerCase().includes("entrada") ||
                       item.tipo.toLowerCase().includes("compra");
-
+                                                      
                     return (
                       <div
                         key={item.id}
@@ -3444,14 +3606,25 @@ function EntriesPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AdminClearDataCard
+        isAdmin={isAdmin}
+        target="entradas"
+        title="Limpar entradas"
+        description="Remove todos os registros de entrada cadastrados no sistema. Os produtos permanecem cadastrados, mas o histórico de entrada será apagado."
+        confirmationText="LIMPAR ENTRADAS"
+        onCleared={onCreated}
+      />
     </div>
+    
   );
 }
 
 function OutputsPage({
   onCreated,
+  isAdmin,
 }: {
   onCreated: () => Promise<void>;
+  isAdmin: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -3945,6 +4118,14 @@ function OutputsPage({
             </div>
           </CardContent>
         </Card>
+        <AdminClearDataCard
+              isAdmin={isAdmin}
+              target="saidas"
+              title="Limpar saídas"
+              description="Remove todos os registros de saída cadastrados no sistema. Os produtos permanecem cadastrados, mas o histórico de saída será apagado."
+              confirmationText="LIMPAR SAIDAS"
+              onCleared={onCreated}
+            />
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -4005,7 +4186,13 @@ function OutputsPage({
 } 
 
 
-function MovementsPage() {
+function MovementsPage({
+  isAdmin,
+  onCleared,
+}: {
+  isAdmin: boolean;
+  onCleared: () => Promise<void>;
+}) {
   const [loading, setLoading] = useState(true);
   const [filtersLoading, setFiltersLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -4510,11 +4697,39 @@ function MovementsPage() {
           )}
         </CardContent>
       </Card>
+
+          <AdminClearDataCard
+            isAdmin={isAdmin}
+            target="movimentacoes"
+            title="Limpar movimentações"
+            description="Remove todo o histórico de movimentações, incluindo entradas e saídas registradas. Os cadastros principais permanecem."
+            confirmationText="LIMPAR MOVIMENTACOES"
+            onCleared={async () => {
+              await loadMovements();
+              await onCleared();
+            }}
+          />
+
     </div>
   );
 }
 
-function SuppliersPage() {
+function SuppliersPage({ isAdmin }: { isAdmin: boolean }) {
+  type Supplier = {
+    id: number;
+    nome: string;
+    nomeFantasia?: string | null;
+    cnpj?: string | null;
+    email?: string | null;
+    telefone?: string | null;
+    whatsapp?: string | null;
+    contatoResponsavel?: string | null;
+    cidade?: string | null;
+    estado?: string | null;
+    observacoes?: string | null;
+    ativo: boolean;
+  };
+
   type SupplierForm = {
     id: number | null;
     nome: string;
@@ -4530,136 +4745,7 @@ function SuppliersPage() {
     ativo: boolean;
   };
 
-  const FIELD_LIMITS = {
-    nome: 120,
-    nomeFantasia: 120,
-    cnpj: 18,
-    email: 160,
-    telefone: 20,
-    whatsapp: 20,
-    contatoResponsavel: 100,
-    cidade: 80,
-    estado: 2,
-    observacoes: 500,
-    busca: 120,
-  } as const;
-
-  const FIELD_PLACEHOLDERS = {
-    buscaFornecedor: "Buscar por nome, cidade, contato, CNPJ ou e-mail",
-    nomeFornecedor: "Ex: Auto Peças RN",
-    nomeFantasiaFornecedor: "Ex: Auto Peças RN Distribuição",
-    cnpjFornecedor: "Ex: 12.345.678/0001-90",
-    emailFornecedor: "Ex: contato@empresa.com",
-    telefoneFornecedor: "Ex: (84) 99999-0001",
-    whatsappFornecedor: "Ex: (84) 99999-0001",
-    contatoResponsavelFornecedor: "Ex: João Silva",
-    cidadeFornecedor: "Ex: Natal",
-    estadoFornecedor: "Ex: RN",
-    observacoesFornecedor:
-      "Ex: Fornecedor principal de lubrificantes, prazo médio de entrega de 3 dias.",
-  } as const;
-
-  function normalizeTextInput(value: string, maxLength: number) {
-    return value.slice(0, maxLength);
-  }
-
-  function normalizeUppercaseInput(value: string, maxLength: number) {
-    return value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, maxLength);
-  }
-
-  function normalizeLowercaseInput(value: string, maxLength: number) {
-    return value.toLowerCase().slice(0, maxLength);
-  }
-
-  function onlyDigitsLocal(value: string) {
-    return value.replace(/\D/g, "");
-  }
-
-  function formatPhoneLikeLocal(value: string) {
-    const digits = onlyDigitsLocal(value).slice(0, 11);
-
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  }
-
-  function formatCnpjLocal(value: string) {
-    const digits = onlyDigitsLocal(value).slice(0, 14);
-
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
-
-    if (digits.length <= 8) {
-      return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
-    }
-
-    if (digits.length <= 12) {
-      return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(
-        5,
-        8
-      )}/${digits.slice(8)}`;
-    }
-
-    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(
-      5,
-      8
-    )}/${digits.slice(8, 12)}-${digits.slice(12)}`;
-  }
-
-  function premiumCardClass(extra?: string) {
-    return cn(
-      "rounded-3xl border border-zinc-200/80 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.06)]",
-      extra
-    );
-  }
-
-  function premiumInputClass(extra?: string) {
-    return cn(
-      "h-12 w-full min-w-0 rounded-2xl border-zinc-200 bg-white px-4 text-sm text-zinc-900 shadow-sm transition",
-      "placeholder:text-zinc-400",
-      "focus-visible:ring-2 focus-visible:ring-zinc-200 focus-visible:ring-offset-0",
-      "disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500",
-      extra
-    );
-  }
-
-  function sectionCardClass(extra?: string) {
-    return cn(
-      "min-w-0 rounded-[26px] border border-zinc-200 bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)]",
-      extra
-    );
-  }
-
-  function fieldWrapperClass(extra?: string) {
-    return cn("min-w-0 space-y-2", extra);
-  }
-
-  const [suppliers, setSuppliers] = useState(
-    suppliersSeed.map((item) => ({
-      id: item.id,
-      nome: item.nome,
-      nomeFantasia: "",
-      cnpj: "",
-      email: "",
-      telefone: item.contato,
-      whatsapp: "",
-      contatoResponsavel: "",
-      cidade: item.cidade.split("/")[0] ?? item.cidade,
-      estado: item.cidade.split("/")[1] ?? "",
-      observacoes: "",
-      ativo: true,
-    }))
-  );
-
-  const [search, setSearch] = useState("");
-  const [cityFilter, setCityFilter] = useState("todas");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingSupplierId, setEditingSupplierId] = useState<number | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-
-  const emptyForm: SupplierForm = {
+  const emptySupplierForm: SupplierForm = {
     id: null,
     nome: "",
     nomeFantasia: "",
@@ -4674,182 +4760,356 @@ function SuppliersPage() {
     ativo: true,
   };
 
-  const [form, setForm] = useState<SupplierForm>(emptyForm);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplierForm, setSupplierForm] =
+    useState<SupplierForm>(emptySupplierForm);
+
+  const [searchSupplier, setSearchSupplier] = useState("");
+  const [showInactiveSuppliers, setShowInactiveSuppliers] = useState(false);
+
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [savingSupplier, setSavingSupplier] = useState(false);
+
+  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
+  const [deleteSupplierModalOpen, setDeleteSupplierModalOpen] = useState(false);
+  const [selectedSupplierToDelete, setSelectedSupplierToDelete] =
+    useState<Supplier | null>(null);
+
+  function premiumCardClass(extra?: string) {
+    return cn(
+      "rounded-3xl border border-zinc-200/80 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.06)]",
+      extra
+    );
+  }
+
+  function normalizeText(value: string) {
+    return value.trim();
+  }
+
+  function normalizeUppercaseInput(value: string) {
+    return value.trim().toUpperCase();
+  }
+
+  function normalizeLowercaseInput(value: string) {
+    return value.trim().toLowerCase();
+  }
+
+  function onlyDigits(value: string) {
+    return value.replace(/\D/g, "");
+  }
+
+  function formatPhoneLike(value: string) {
+    const digits = onlyDigits(value).slice(0, 11);
+
+    if (digits.length <= 10) {
+      return digits
+        .replace(/^(\d{2})(\d)/, "($1) $2")
+        .replace(/(\d{4})(\d)/, "$1-$2");
+    }
+
+    return digits
+      .replace(/^(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{5})(\d)/, "$1-$2");
+  }
+
+  function formatCnpj(value: string) {
+    return onlyDigits(value)
+      .slice(0, 14)
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+
+  function getSupplierPayload() {
+    return {
+      nome: normalizeText(supplierForm.nome),
+      nomeFantasia: normalizeText(supplierForm.nomeFantasia),
+      cnpj: normalizeText(supplierForm.cnpj),
+      email: normalizeLowercaseInput(supplierForm.email),
+      telefone: normalizeText(supplierForm.telefone),
+      whatsapp: normalizeText(supplierForm.whatsapp),
+      contatoResponsavel: normalizeText(supplierForm.contatoResponsavel),
+      cidade: normalizeText(supplierForm.cidade),
+      estado: normalizeUppercaseInput(supplierForm.estado),
+      observacoes: normalizeText(supplierForm.observacoes),
+      ativo: supplierForm.ativo,
+    };
+  }
+
+  const loadSuppliers = useCallback(async () => {
+  try {
+    setLoadingSuppliers(true);
+
+    const data = await listSuppliers();
+
+    setSuppliers(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("Erro ao carregar fornecedores:", error);
+    alert("Não foi possível carregar os fornecedores.");
+  } finally {
+    setLoadingSuppliers(false);
+  }
+}, []);
+
+useEffect(() => {
+  const timeoutId = window.setTimeout(() => {
+    void loadSuppliers();
+  }, 0);
+
+  return () => {
+    window.clearTimeout(timeoutId);
+  };
+}, [loadSuppliers]);
+
+useEffect(() => {
+  let active = true;
+
+  queueMicrotask(() => {
+    if (active) {
+      void loadSuppliers();
+    }
+  });
+
+  return () => {
+    active = false;
+  };
+}, [loadSuppliers]);
+
+useEffect(() => {
+  let active = true;
+
+  queueMicrotask(() => {
+    if (active) {
+      void loadSuppliers();
+    }
+  });
+
+  return () => {
+    active = false;
+  };
+}, [loadSuppliers]);
 
   useEffect(() => {
-    if (!successMessage) return;
+    loadSuppliers();
+  }, []);
 
-    const timer = window.setTimeout(() => {
-      setSuccessMessage("");
-    }, 3500);
-
-    return () => window.clearTimeout(timer);
-  }, [successMessage]);
-
-  const cities = useMemo(() => {
-    return Array.from(
-      new Set(
-        suppliers
-          .map((item) => item.cidade?.trim())
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const activeSuppliers = useMemo(() => {
+    return suppliers.filter((supplier) => supplier.ativo);
   }, [suppliers]);
 
-  const filteredSuppliers = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
-    return suppliers.filter((item) => {
-      const matchesSearch =
-        !term ||
-        [
-          item.nome,
-          item.nomeFantasia,
-          item.cidade,
-          item.estado,
-          item.telefone,
-          item.whatsapp,
-          item.email,
-          item.cnpj,
-          item.contatoResponsavel,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(term);
-
-      const matchesCity =
-        cityFilter === "todas" ? true : item.cidade === cityFilter;
-
-      return matchesSearch && matchesCity;
-    });
-  }, [suppliers, search, cityFilter]);
-
-  const totalSuppliers = suppliers.length;
-  const totalCities = cities.length;
-  const totalContacts = suppliers.filter(
-    (item) => item.telefone || item.whatsapp || item.email
-  ).length;
-
-  function resetForm() {
-    setForm(emptyForm);
-    setEditingSupplierId(null);
-    setErrorMessage("");
-  }
-
-  function openCreateDialog() {
-    resetForm();
-    setDialogOpen(true);
-  }
-
-  function openEditDialog(supplier: (typeof suppliers)[number]) {
-    setEditingSupplierId(supplier.id);
-    setForm({
-      id: supplier.id,
-      nome: supplier.nome,
-      nomeFantasia: supplier.nomeFantasia,
-      cnpj: supplier.cnpj,
-      email: supplier.email,
-      telefone: supplier.telefone,
-      whatsapp: supplier.whatsapp,
-      contatoResponsavel: supplier.contatoResponsavel,
-      cidade: supplier.cidade,
-      estado: supplier.estado,
-      observacoes: supplier.observacoes,
-      ativo: supplier.ativo,
-    });
-    setErrorMessage("");
-    setDialogOpen(true);
-  }
-
-  function handleToggleActive(id: number) {
-    setSuppliers((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, ativo: !item.ativo } : item
-      )
+  const supplierStats = useMemo(() => {
+    const cities = new Set(
+      activeSuppliers
+        .map((supplier) => supplier.cidade?.trim())
+        .filter(Boolean)
     );
 
-    const supplier = suppliers.find((item) => item.id === id);
+    const states = new Set(
+      activeSuppliers
+        .map((supplier) => supplier.estado?.trim())
+        .filter(Boolean)
+    );
 
-    if (supplier) {
-      setSuccessMessage(
-        supplier.ativo
-          ? "Fornecedor inativado com sucesso."
-          : "Fornecedor ativado com sucesso."
-      );
+    return {
+      total: activeSuppliers.length,
+      cidades: cities.size,
+      estados: states.size,
+    };
+  }, [activeSuppliers]);
+
+  const filteredSuppliers = useMemo(() => {
+    const search = searchSupplier.trim().toLowerCase();
+
+    return suppliers.filter((supplier) => {
+      const matchesStatus = showInactiveSuppliers ? true : supplier.ativo;
+
+      const searchableText = [
+        supplier.nome,
+        supplier.nomeFantasia,
+        supplier.cnpj,
+        supplier.email,
+        supplier.telefone,
+        supplier.whatsapp,
+        supplier.contatoResponsavel,
+        supplier.cidade,
+        supplier.estado,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = !search || searchableText.includes(search);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [suppliers, searchSupplier, showInactiveSuppliers]);
+
+  function handleOpenCreateSupplier() {
+    setSupplierForm(emptySupplierForm);
+    setSupplierModalOpen(true);
+  }
+
+  function handleOpenEditSupplier(supplier: Supplier) {
+    setSupplierForm({
+      id: supplier.id,
+      nome: supplier.nome ?? "",
+      nomeFantasia: supplier.nomeFantasia ?? "",
+      cnpj: supplier.cnpj ?? "",
+      email: supplier.email ?? "",
+      telefone: supplier.telefone ?? "",
+      whatsapp: supplier.whatsapp ?? "",
+      contatoResponsavel: supplier.contatoResponsavel ?? "",
+      cidade: supplier.cidade ?? "",
+      estado: supplier.estado ?? "",
+      observacoes: supplier.observacoes ?? "",
+      ativo: supplier.ativo,
+    });
+
+    setSupplierModalOpen(true);
+  }
+
+  function handleOpenDeleteSupplier(supplier: Supplier) {
+    setSelectedSupplierToDelete(supplier);
+    setDeleteSupplierModalOpen(true);
+  }
+
+  async function handleSubmitSupplier(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (savingSupplier) return;
+
+    const payload = getSupplierPayload();
+
+    if (!payload.nome) {
+      alert("Informe o nome do fornecedor.");
+      return;
+    }
+
+    try {
+      setSavingSupplier(true);
+
+      if (supplierForm.id) {
+        await updateSupplier(supplierForm.id, payload);
+      } else {
+        await createSupplier(payload);
+      }
+
+      await loadSuppliers();
+
+      setSupplierModalOpen(false);
+      setSupplierForm(emptySupplierForm);
+    } catch (error) {
+      console.error("Erro ao salvar fornecedor:", error);
+      alert("Não foi possível salvar o fornecedor.");
+    } finally {
+      setSavingSupplier(false);
     }
   }
 
-  function handleSubmit() {
-    setErrorMessage("");
-    setSuccessMessage("");
+  async function handleConfirmDeleteSupplier() {
+    if (!selectedSupplierToDelete || savingSupplier) return;
 
-    if (!form.nome.trim()) {
-      setErrorMessage("Informe o nome do fornecedor.");
-      return;
-    }
+    try {
+      setSavingSupplier(true);
 
-    if (!form.cidade.trim()) {
-      setErrorMessage("Informe a cidade do fornecedor.");
-      return;
-    }
+      await deleteSupplier(selectedSupplierToDelete.id);
 
-    if (!form.estado.trim() || form.estado.trim().length !== 2) {
-      setErrorMessage("Informe a UF com 2 caracteres.");
-      return;
-    }
+      await loadSuppliers();
 
-    if (editingSupplierId) {
-      setSuppliers((prev) =>
-        prev.map((item) =>
-          item.id === editingSupplierId
-            ? {
-                ...item,
-                nome: form.nome.trim(),
-                nomeFantasia: form.nomeFantasia.trim(),
-                cnpj: form.cnpj.trim(),
-                email: form.email.trim().toLowerCase(),
-                telefone: form.telefone.trim(),
-                whatsapp: form.whatsapp.trim(),
-                contatoResponsavel: form.contatoResponsavel.trim(),
-                cidade: form.cidade.trim(),
-                estado: form.estado.trim().toUpperCase(),
-                observacoes: form.observacoes.trim(),
-                ativo: form.ativo,
-              }
-            : item
-        )
+      setDeleteSupplierModalOpen(false);
+      setSelectedSupplierToDelete(null);
+    } catch (error) {
+      console.error("Erro ao excluir fornecedor:", error);
+      alert(
+        "Não foi possível excluir o fornecedor. Se ele estiver vinculado a produtos ou movimentações, o ideal é inativar em vez de excluir."
       );
-
-      setSuccessMessage("Fornecedor atualizado com sucesso.");
-    } else {
-      const nextId =
-        suppliers.length > 0
-          ? Math.max(...suppliers.map((item) => item.id)) + 1
-          : 1;
-
-      setSuppliers((prev) => [
-        {
-          id: nextId,
-          nome: form.nome.trim(),
-          nomeFantasia: form.nomeFantasia.trim(),
-          cnpj: form.cnpj.trim(),
-          email: form.email.trim().toLowerCase(),
-          telefone: form.telefone.trim(),
-          whatsapp: form.whatsapp.trim(),
-          contatoResponsavel: form.contatoResponsavel.trim(),
-          cidade: form.cidade.trim(),
-          estado: form.estado.trim().toUpperCase(),
-          observacoes: form.observacoes.trim(),
-          ativo: true,
-        },
-        ...prev,
-      ]);
-
-      setSuccessMessage("Fornecedor criado com sucesso.");
+    } finally {
+      setSavingSupplier(false);
     }
+  }
 
-    setDialogOpen(false);
-    resetForm();
+  async function handleToggleSupplierStatus(supplier: Supplier) {
+    if (savingSupplier) return;
+
+    try {
+      setSavingSupplier(true);
+
+      await updateSupplier(supplier.id, {
+        ativo: !supplier.ativo,
+      });
+
+      await loadSuppliers();
+    } catch (error) {
+      console.error("Erro ao alterar status do fornecedor:", error);
+      alert("Não foi possível alterar o status do fornecedor.");
+    } finally {
+      setSavingSupplier(false);
+    }
+  }
+
+  function handleChangeSupplierForm<K extends keyof SupplierForm>(
+    field: K,
+    value: SupplierForm[K]
+  ) {
+    setSupplierForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function exportSuppliersCsv() {
+    const headers = [
+      "Nome",
+      "Nome fantasia",
+      "CNPJ",
+      "E-mail",
+      "Telefone",
+      "WhatsApp",
+      "Contato responsável",
+      "Cidade",
+      "Estado",
+      "Status",
+      "Observações",
+    ];
+
+    const rows = filteredSuppliers.map((supplier) => [
+      supplier.nome ?? "",
+      supplier.nomeFantasia ?? "",
+      supplier.cnpj ?? "",
+      supplier.email ?? "",
+      supplier.telefone ?? "",
+      supplier.whatsapp ?? "",
+      supplier.contatoResponsavel ?? "",
+      supplier.cidade ?? "",
+      supplier.estado ?? "",
+      supplier.ativo ? "Ativo" : "Inativo",
+      supplier.observacoes ?? "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) =>
+        row
+          .map((value) => {
+            const safeValue = String(value).replace(/"/g, '""');
+            return `"${safeValue}"`;
+          })
+          .join(";")
+      )
+      .join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "fornecedores.csv";
+    link.click();
+
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -4857,564 +5117,1366 @@ function SuppliersPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           title="Fornecedores"
-          value={totalSuppliers}
-          subtitle="Base cadastrada no sistema"
+          value={supplierStats.total}
+          subtitle="Fornecedores ativos cadastrados"
           icon={Warehouse}
         />
+
         <StatCard
           title="Cidades atendidas"
-          value={totalCities}
-          subtitle="Distribuição atual"
+          value={supplierStats.cidades}
+          subtitle="Cidades com fornecedores ativos"
           icon={MapPin}
         />
+
         <StatCard
-          title="Contatos disponíveis"
-          value={totalContacts}
-          subtitle="Com telefone, WhatsApp ou e-mail"
-          icon={Phone}
+          title="Estados"
+          value={supplierStats.estados}
+          subtitle="Estados com fornecedores ativos"
+          icon={MapPin}
         />
       </div>
 
-      <Card className={premiumCardClass("overflow-hidden")}>
-        <CardHeader className="border-b border-zinc-100 bg-gradient-to-r from-white via-zinc-50/60 to-white pb-4">
-          <CardTitle className="text-zinc-950">Fornecedores</CardTitle>
-          <p className="text-sm text-zinc-500">
-            Gestão dos parceiros e contatos comerciais do sistema.
-          </p>
-        </CardHeader>
+      <div className={premiumCardClass("p-4 sm:p-5")}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-zinc-950">Fornecedores</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Cadastre, edite, inative e exporte os fornecedores da oficina.
+            </p>
+          </div>
 
-        <CardContent className="space-y-5 p-6">
-          <div className="rounded-3xl border border-zinc-200/80 bg-zinc-50/70 p-4">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-1 flex-col gap-3 lg:flex-row">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                  <Input
-                    value={search}
-                    maxLength={FIELD_LIMITS.busca}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={exportSuppliersCsv}
+              disabled={loadingSuppliers || filteredSuppliers.length === 0}
+              className="inline-flex h-11 items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Exportar CSV
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenCreateSupplier}
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+            >
+              Novo fornecedor
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto]">
+          <input
+            type="text"
+            value={searchSupplier}
+            onChange={(e) => setSearchSupplier(e.target.value)}
+            placeholder="Buscar por nome, fantasia, CNPJ, cidade, telefone ou e-mail"
+            className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-zinc-950"
+          />
+
+          <label className="flex h-11 cursor-pointer items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700">
+            <input
+              type="checkbox"
+              checked={showInactiveSuppliers}
+              onChange={(e) => setShowInactiveSuppliers(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Mostrar inativos
+          </label>
+        </div>
+
+        <div className="mt-5 overflow-hidden rounded-3xl border border-zinc-200">
+          {loadingSuppliers ? (
+            <div className="flex min-h-40 items-center justify-center text-sm text-zinc-500">
+              Carregando fornecedores...
+            </div>
+          ) : filteredSuppliers.length === 0 ? (
+            <div className="flex min-h-40 items-center justify-center px-4 text-center text-sm text-zinc-500">
+              Nenhum fornecedor encontrado.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-zinc-200 text-sm">
+                <thead className="bg-zinc-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700">
+                      Fornecedor
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700">
+                      Contato
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700">
+                      Local
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold text-zinc-700">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-zinc-100 bg-white">
+                  {filteredSuppliers.map((supplier) => (
+                    <tr key={supplier.id} className="hover:bg-zinc-50/70">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-zinc-950">
+                          {supplier.nome}
+                        </div>
+
+                        {supplier.nomeFantasia ? (
+                          <div className="text-xs text-zinc-500">
+                            {supplier.nomeFantasia}
+                          </div>
+                        ) : null}
+
+                        {supplier.cnpj ? (
+                          <div className="mt-1 text-xs text-zinc-400">
+                            CNPJ: {supplier.cnpj}
+                          </div>
+                        ) : null}
+                      </td>
+
+                      <td className="px-4 py-3 text-zinc-600">
+                        {supplier.contatoResponsavel ? (
+                          <div>{supplier.contatoResponsavel}</div>
+                        ) : null}
+
+                        {supplier.telefone ? (
+                          <div className="text-xs text-zinc-500">
+                            Tel: {supplier.telefone}
+                          </div>
+                        ) : null}
+
+                        {supplier.whatsapp ? (
+                          <div className="text-xs text-zinc-500">
+                            WhatsApp: {supplier.whatsapp}
+                          </div>
+                        ) : null}
+
+                        {supplier.email ? (
+                          <div className="text-xs text-zinc-500">
+                            {supplier.email}
+                          </div>
+                        ) : null}
+                      </td>
+
+                      <td className="px-4 py-3 text-zinc-600">
+                        {[supplier.cidade, supplier.estado]
+                          .filter(Boolean)
+                          .join(" / ") || "-"}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                            supplier.ativo
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-zinc-100 text-zinc-500"
+                          )}
+                        >
+                          {supplier.ativo ? "Ativo" : "Inativo"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditSupplier(supplier)}
+                            className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100"
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSupplierStatus(supplier)}
+                            disabled={savingSupplier}
+                            className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {supplier.ativo ? "Inativar" : "Ativar"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDeleteSupplier(supplier)}
+                            disabled={savingSupplier}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {supplierModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-zinc-950">
+                  {supplierForm.id ? "Editar fornecedor" : "Novo fornecedor"}
+                </h3>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Preencha os dados comerciais e de contato do fornecedor.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSupplierModalOpen(false)}
+                disabled={savingSupplier}
+                className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitSupplier} className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Nome do fornecedor
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.nome}
                     onChange={(e) =>
-                      setSearch(
-                        normalizeTextInput(e.target.value, FIELD_LIMITS.busca)
-                      )
+                      handleChangeSupplierForm("nome", e.target.value)
                     }
-                    placeholder={FIELD_PLACEHOLDERS.buscaFornecedor}
-                    className={premiumInputClass("pl-9")}
+                    placeholder="Ex: Auto Peças Padre Cícero"
+                    maxLength={80}
+                    required
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
                   />
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-1 xl:w-[280px]">
-                  <Select value={cityFilter} onValueChange={setCityFilter}>
-                    <SelectTrigger className="h-12 rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 shadow-sm">
-                      <SelectValue placeholder="Cidade" />
-                    </SelectTrigger>
-
-                    <SelectContent className="border-zinc-200 bg-white">
-                      <SelectItem value="todas">Todas as cidades</SelectItem>
-                      {cities.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  variant="outline"
-                  className="h-12 rounded-2xl border-zinc-300 bg-white px-5 font-medium text-zinc-800 hover:bg-zinc-100"
-                  onClick={() => {
-                    setSearch("");
-                    setCityFilter("todas");
-                  }}
-                >
-                  Limpar filtros
-                </Button>
-
-                <Button
-                  className="h-12 rounded-2xl bg-zinc-950 px-5 font-semibold text-white shadow-sm hover:bg-zinc-800"
-                  onClick={openCreateDialog}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Novo fornecedor
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {successMessage ? (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {successMessage}
-            </div>
-          ) : null}
-
-          {errorMessage ? (
-            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {errorMessage}
-            </div>
-          ) : null}
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredSuppliers.map((item) => (
-              <Card
-                key={item.id}
-                className="rounded-3xl border border-zinc-200/80 bg-gradient-to-br from-white to-zinc-50/60 shadow-[0_8px_24px_rgba(15,23,42,0.04)]"
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-xl font-semibold text-zinc-950">
-                        {item.nome}
-                      </h3>
-                      <p className="mt-1 text-sm text-zinc-500">
-                        {item.cidade} / {item.estado}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3">
-                      <Building2 className="h-4 w-4 text-amber-600" />
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    {item.ativo ? (
-                      <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-                        Ativo
-                      </Badge>
-                    ) : (
-                      <Badge className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-50">
-                        Inativo
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="mt-5 space-y-2 text-sm text-zinc-700">
-                    <p>
-                      <span className="font-medium">Telefone:</span>{" "}
-                      {item.telefone || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">WhatsApp:</span>{" "}
-                      {item.whatsapp || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">E-mail:</span>{" "}
-                      {item.email || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">CNPJ:</span>{" "}
-                      {item.cnpj || "-"}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-2">
-                    <Button
-                      variant="outline"
-                      className="rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
-                      onClick={() => openEditDialog(item)}
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Editar
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      className={
-                        item.ativo
-                          ? "rounded-2xl border-red-200 bg-white font-medium text-red-700 hover:bg-red-50 hover:text-red-700"
-                          : "rounded-2xl border-emerald-200 bg-white font-medium text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700"
-                      }
-                      onClick={() => handleToggleActive(item.id)}
-                    >
-                      <Ban className="mr-2 h-4 w-4" />
-                      {item.ativo ? "Inativar" : "Ativar"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {filteredSuppliers.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-zinc-300 bg-white py-12 text-center text-sm text-zinc-500">
-              Nenhum fornecedor encontrado com os filtros aplicados.
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(value) => {
-          setDialogOpen(value);
-          if (!value) resetForm();
-        }}
-      >
-        <DialogContent
-          className={cn(
-            "flex max-h-[90vh] w-[calc(100vw-3rem)] !max-w-[1120px] flex-col overflow-hidden rounded-[30px] border border-zinc-200 bg-white p-0 shadow-[0_28px_80px_rgba(15,23,42,0.24)]",
-            "sm:!max-w-[1120px] lg:!max-w-[1120px]"
-          )}
-        >
-          <DialogHeader className="shrink-0 border-b border-zinc-200 bg-white px-6 py-5 sm:px-8">
-            <div className="flex min-w-0 items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-zinc-950 text-white shadow-sm">
-                <Building2 className="h-5 w-5" />
-              </div>
-
-              <div className="min-w-0">
-                <DialogTitle className="text-2xl font-semibold tracking-tight text-zinc-950">
-                  {editingSupplierId ? "Editar fornecedor" : "Novo fornecedor"}
-                </DialogTitle>
-
-                <p className="mt-1 max-w-2xl text-sm leading-5 text-zinc-500">
-                  Cadastre os dados comerciais, contatos e informações de atendimento do fornecedor.
-                </p>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto overflow-x-hidden bg-zinc-50/60 px-6 py-6 sm:px-8">
-            <div className="grid min-w-0 gap-5 xl:grid-cols-[1.25fr_0.95fr]">
-              <div className="min-w-0 space-y-5">
-                <div className={sectionCardClass()}>
-                  <div className="mb-5">
-                    <h3 className="text-base font-semibold text-zinc-950">
-                      Identificação do fornecedor
-                    </h3>
-
-                    <p className="mt-1 text-sm leading-5 text-zinc-500">
-                      Dados principais para localizar e identificar o parceiro comercial.
-                    </p>
-                  </div>
-
-                  <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className={fieldWrapperClass()}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        Nome
-                      </Label>
-                      <Input
-                        value={form.nome}
-                        maxLength={FIELD_LIMITS.nome}
-                        placeholder={FIELD_PLACEHOLDERS.nomeFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            nome: normalizeTextInput(
-                              e.target.value,
-                              FIELD_LIMITS.nome
-                            ),
-                          }))
-                        }
-                        className={premiumInputClass()}
-                      />
-                    </div>
-
-                    <div className={fieldWrapperClass()}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        Nome fantasia
-                      </Label>
-                      <Input
-                        value={form.nomeFantasia}
-                        maxLength={FIELD_LIMITS.nomeFantasia}
-                        placeholder={FIELD_PLACEHOLDERS.nomeFantasiaFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            nomeFantasia: normalizeTextInput(
-                              e.target.value,
-                              FIELD_LIMITS.nomeFantasia
-                            ),
-                          }))
-                        }
-                        className={premiumInputClass()}
-                      />
-                    </div>
-
-                    <div className={fieldWrapperClass()}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        CNPJ
-                      </Label>
-                      <Input
-                        value={form.cnpj}
-                        maxLength={FIELD_LIMITS.cnpj}
-                        inputMode="numeric"
-                        placeholder={FIELD_PLACEHOLDERS.cnpjFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            cnpj: formatCnpjLocal(e.target.value),
-                          }))
-                        }
-                        className={premiumInputClass()}
-                      />
-                    </div>
-
-                    <div className={fieldWrapperClass()}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        E-mail
-                      </Label>
-                      <Input
-                        value={form.email}
-                        type="email"
-                        maxLength={FIELD_LIMITS.email}
-                        placeholder={FIELD_PLACEHOLDERS.emailFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            email: normalizeLowercaseInput(
-                              e.target.value,
-                              FIELD_LIMITS.email
-                            ),
-                          }))
-                        }
-                        className={premiumInputClass()}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className={sectionCardClass()}>
-                  <div className="mb-5">
-                    <h3 className="text-base font-semibold text-zinc-950">
-                      Contatos
-                    </h3>
-
-                    <p className="mt-1 text-sm leading-5 text-zinc-500">
-                      Canais de comunicação e pessoa responsável pelo atendimento.
-                    </p>
-                  </div>
-
-                  <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className={fieldWrapperClass()}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        Telefone
-                      </Label>
-                      <Input
-                        value={form.telefone}
-                        maxLength={FIELD_LIMITS.telefone}
-                        inputMode="tel"
-                        placeholder={FIELD_PLACEHOLDERS.telefoneFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            telefone: formatPhoneLikeLocal(e.target.value),
-                          }))
-                        }
-                        className={premiumInputClass()}
-                      />
-                    </div>
-
-                    <div className={fieldWrapperClass()}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        WhatsApp
-                      </Label>
-                      <Input
-                        value={form.whatsapp}
-                        maxLength={FIELD_LIMITS.whatsapp}
-                        inputMode="tel"
-                        placeholder={FIELD_PLACEHOLDERS.whatsappFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            whatsapp: formatPhoneLikeLocal(e.target.value),
-                          }))
-                        }
-                        className={premiumInputClass()}
-                      />
-                    </div>
-
-                    <div className={fieldWrapperClass("md:col-span-2")}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        Contato responsável
-                      </Label>
-                      <Input
-                        value={form.contatoResponsavel}
-                        maxLength={FIELD_LIMITS.contatoResponsavel}
-                        placeholder={FIELD_PLACEHOLDERS.contatoResponsavelFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            contatoResponsavel: normalizeTextInput(
-                              e.target.value,
-                              FIELD_LIMITS.contatoResponsavel
-                            ),
-                          }))
-                        }
-                        className={premiumInputClass()}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="min-w-0 space-y-5">
-                <div className={sectionCardClass("bg-gradient-to-br from-white to-zinc-50")}>
-                  <div className="mb-5">
-                    <h3 className="text-base font-semibold text-zinc-950">
-                      Localização
-                    </h3>
-
-                    <p className="mt-1 text-sm leading-5 text-zinc-500">
-                      Cidade e UF do fornecedor para facilitar filtros e relatórios.
-                    </p>
-                  </div>
-
-                  <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-[1fr_110px] xl:grid-cols-1">
-                    <div className={fieldWrapperClass()}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        Cidade
-                      </Label>
-                      <Input
-                        value={form.cidade}
-                        maxLength={FIELD_LIMITS.cidade}
-                        placeholder={FIELD_PLACEHOLDERS.cidadeFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            cidade: normalizeTextInput(
-                              e.target.value,
-                              FIELD_LIMITS.cidade
-                            ),
-                          }))
-                        }
-                        className={premiumInputClass()}
-                      />
-                    </div>
-
-                    <div className={fieldWrapperClass()}>
-                      <Label className="text-sm font-medium text-zinc-700">
-                        Estado (UF)
-                      </Label>
-                      <Input
-                        value={form.estado}
-                        maxLength={FIELD_LIMITS.estado}
-                        placeholder={FIELD_PLACEHOLDERS.estadoFornecedor}
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            estado: normalizeUppercaseInput(
-                              e.target.value,
-                              FIELD_LIMITS.estado
-                            ),
-                          }))
-                        }
-                        className={premiumInputClass("text-center uppercase")}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className={sectionCardClass()}>
-                  <div className="mb-5">
-                    <h3 className="text-base font-semibold text-zinc-950">
-                      Observações
-                    </h3>
-
-                    <p className="mt-1 text-sm leading-5 text-zinc-500">
-                      Use este campo para registrar prazos, condições comerciais ou detalhes úteis.
-                    </p>
-                  </div>
-
-                  <div className={fieldWrapperClass()}>
-                    <Label className="text-sm font-medium text-zinc-700">
-                      Observações gerais
-                    </Label>
-
-                    <textarea
-                      value={form.observacoes}
-                      maxLength={FIELD_LIMITS.observacoes}
-                      placeholder={FIELD_PLACEHOLDERS.observacoesFornecedor}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          observacoes: normalizeTextInput(
-                            e.target.value,
-                            FIELD_LIMITS.observacoes
-                          ),
-                        }))
-                      }
-                      className={cn(
-                        "min-h-[148px] w-full min-w-0 resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 shadow-sm outline-none transition",
-                        "placeholder:text-zinc-400",
-                        "focus:ring-2 focus:ring-zinc-200 focus:ring-offset-0"
-                      )}
-                    />
-
-                    <p className="text-right text-xs text-zinc-400">
-                      {form.observacoes.length}/{FIELD_LIMITS.observacoes}
-                    </p>
-                  </div>
-                </div>
-
-                <div className={sectionCardClass()}>
-                  <div className="mb-5">
-                    <h3 className="text-base font-semibold text-zinc-950">
-                      Status do fornecedor
-                    </h3>
-
-                    <p className="mt-1 text-sm leading-5 text-zinc-500">
-                      Controle se o fornecedor continuará disponível para uso no sistema.
-                    </p>
-                  </div>
-
-                  <label className="flex min-w-0 cursor-pointer items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white px-4 py-4 text-sm text-zinc-700 shadow-sm transition hover:bg-zinc-50">
-                    <div className="min-w-0">
-                      <p className="font-medium text-zinc-900">
-                        Fornecedor ativo
-                      </p>
-                      <p className="mt-1 text-xs leading-4 text-zinc-500">
-                        Mantém este fornecedor disponível para cadastro de produtos e movimentações.
-                      </p>
-                    </div>
-
-                    <input
-                      type="checkbox"
-                      checked={Boolean(form.ativo)}
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          ativo: e.target.checked,
-                        }))
-                      }
-                      className="h-5 w-5 shrink-0 accent-zinc-950"
-                    />
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Nome fantasia
                   </label>
+                  <input
+                    type="text"
+                    value={supplierForm.nomeFantasia}
+                    onChange={(e) =>
+                      handleChangeSupplierForm("nomeFantasia", e.target.value)
+                    }
+                    placeholder="Ex: Padre Cícero Distribuidora"
+                    maxLength={80}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
                 </div>
 
-                {errorMessage ? (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                    {errorMessage}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    CNPJ
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.cnpj}
+                    onChange={(e) =>
+                      handleChangeSupplierForm("cnpj", formatCnpj(e.target.value))
+                    }
+                    placeholder="00.000.000/0000-00"
+                    maxLength={18}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
 
-          <DialogFooter className="shrink-0 border-t border-zinc-200 bg-white px-6 py-4 sm:px-8">
-            <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button
-                variant="outline"
-                className="h-11 rounded-2xl border-zinc-300 bg-white px-6 font-medium text-zinc-800 hover:bg-zinc-100"
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    E-mail
+                  </label>
+                  <input
+                    type="email"
+                    value={supplierForm.email}
+                    onChange={(e) =>
+                      handleChangeSupplierForm(
+                        "email",
+                        e.target.value.toLowerCase()
+                      )
+                    }
+                    placeholder="fornecedor@email.com"
+                    maxLength={100}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Telefone
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.telefone}
+                    onChange={(e) =>
+                      handleChangeSupplierForm(
+                        "telefone",
+                        formatPhoneLike(e.target.value)
+                      )
+                    }
+                    placeholder="(84) 3333-3333"
+                    maxLength={15}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    WhatsApp
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.whatsapp}
+                    onChange={(e) =>
+                      handleChangeSupplierForm(
+                        "whatsapp",
+                        formatPhoneLike(e.target.value)
+                      )
+                    }
+                    placeholder="(84) 99999-9999"
+                    maxLength={15}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Contato responsável
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.contatoResponsavel}
+                    onChange={(e) =>
+                      handleChangeSupplierForm(
+                        "contatoResponsavel",
+                        e.target.value
+                      )
+                    }
+                    placeholder="Ex: João Silva"
+                    maxLength={80}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Cidade
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.cidade}
+                    onChange={(e) =>
+                      handleChangeSupplierForm("cidade", e.target.value)
+                    }
+                    placeholder="Ex: Natal"
+                    maxLength={60}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Estado
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierForm.estado}
+                    onChange={(e) =>
+                      handleChangeSupplierForm(
+                        "estado",
+                        e.target.value.toUpperCase().slice(0, 2)
+                      )
+                    }
+                    placeholder="RN"
+                    maxLength={2}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm uppercase outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <label className="flex h-11 items-center gap-2 self-end rounded-2xl border border-zinc-200 px-4 text-sm font-medium text-zinc-700">
+                  <input
+                    type="checkbox"
+                    checked={supplierForm.ativo}
+                    onChange={(e) =>
+                      handleChangeSupplierForm("ativo", e.target.checked)
+                    }
+                    className="h-4 w-4"
+                  />
+                  Fornecedor ativo
+                </label>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-800">
+                  Observações
+                </label>
+                <textarea
+                  value={supplierForm.observacoes}
+                  onChange={(e) =>
+                    handleChangeSupplierForm("observacoes", e.target.value)
+                  }
+                  placeholder="Informações adicionais sobre prazos, marcas, condições de pagamento ou observações internas."
+                  maxLength={300}
+                  className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-zinc-950"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSupplierModalOpen(false)}
+                  disabled={savingSupplier}
+                  className="h-11 rounded-2xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingSupplier}
+                  className="h-11 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingSupplier ? "Salvando..." : "Salvar fornecedor"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteSupplierModalOpen && selectedSupplierToDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <h3 className="text-lg font-bold text-zinc-950">
+              Excluir fornecedor?
+            </h3>
+
+            <p className="mt-2 text-sm text-zinc-500">
+              Você está prestes a excluir o fornecedor{" "}
+              <strong className="text-zinc-900">
+                {selectedSupplierToDelete.nome}
+              </strong>
+              . Essa ação deve ser usada somente se ele não tiver vínculo com
+              produtos ou movimentações.
+            </p>
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
                 onClick={() => {
-                  setDialogOpen(false);
-                  resetForm();
+                  setDeleteSupplierModalOpen(false);
+                  setSelectedSupplierToDelete(null);
                 }}
+                disabled={savingSupplier}
+                className="h-11 rounded-2xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancelar
-              </Button>
+              </button>
 
-              <Button
-                className="h-11 rounded-2xl bg-zinc-950 px-7 font-semibold text-white shadow-[0_10px_25px_rgba(15,23,42,0.18)] hover:bg-zinc-800"
-                onClick={handleSubmit}
+              <button
+                type="button"
+                onClick={handleConfirmDeleteSupplier}
+                disabled={savingSupplier}
+                className="h-11 rounded-2xl bg-red-600 px-5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {editingSupplierId ? "Salvar alterações" : "Criar fornecedor"}
-              </Button>
+                {savingSupplier ? "Excluindo..." : "Excluir"}
+              </button>
             </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      ) : null}
+      <AdminClearDataCard
+        isAdmin={isAdmin}
+        target="fornecedores"
+        title="Limpar fornecedores"
+        description="Remove todos os fornecedores cadastrados. Se houver produtos vinculados a fornecedores, a limpeza pode exigir remover produtos ou vínculos antes."
+        confirmationText="LIMPAR FORNECEDORES"
+        onCleared={loadSuppliers}
+      />  
+    </div>
+  );
+}
+
+function CustomersPage({ isAdmin }: { isAdmin: boolean }) {
+  type CustomerForm = {
+    id: number | null;
+    nome: string;
+    cpf_cnpj: string;
+    telefone: string;
+    whatsapp: string;
+    email: string;
+    endereco: string;
+    bairro: string;
+    cidade: string;
+    estado: string;
+    observacoes: string;
+    ativo: boolean;
+  };
+
+  const emptyCustomerForm: CustomerForm = {
+    id: null,
+    nome: "",
+    cpf_cnpj: "",
+    telefone: "",
+    whatsapp: "",
+    email: "",
+    endereco: "",
+    bairro: "",
+    cidade: "",
+    estado: "",
+    observacoes: "",
+    ativo: true,
+  };
+
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerForm, setCustomerForm] =
+    useState<CustomerForm>(emptyCustomerForm);
+
+  const [searchCustomer, setSearchCustomer] = useState("");
+  const [showInactiveCustomers, setShowInactiveCustomers] = useState(false);
+
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [deleteCustomerModalOpen, setDeleteCustomerModalOpen] = useState(false);
+  const [selectedCustomerToDelete, setSelectedCustomerToDelete] =
+    useState<Customer | null>(null);
+
+  function premiumCardClass(extra?: string) {
+    return cn(
+      "rounded-3xl border border-zinc-200/80 bg-white shadow-[0_12px_35px_rgba(15,23,42,0.06)]",
+      extra
+    );
+  }
+
+  function onlyDigits(value: string) {
+    return value.replace(/\D/g, "");
+  }
+
+  function normalizeText(value: string) {
+    return value.trim();
+  }
+
+  function normalizeLowercaseInput(value: string) {
+    return value.trim().toLowerCase();
+  }
+
+  function normalizeUppercaseInput(value: string) {
+    return value.trim().toUpperCase();
+  }
+
+  function formatCpfCnpj(value: string) {
+    const digits = onlyDigits(value).slice(0, 14);
+
+    if (digits.length <= 11) {
+      return digits
+        .replace(/^(\d{3})(\d)/, "$1.$2")
+        .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+        .replace(/\.(\d{3})(\d)/, ".$1-$2");
+    }
+
+    return digits
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+
+  function formatPhoneLike(value: string) {
+    const digits = onlyDigits(value).slice(0, 11);
+
+    if (digits.length <= 10) {
+      return digits
+        .replace(/^(\d{2})(\d)/, "($1) $2")
+        .replace(/(\d{4})(\d)/, "$1-$2");
+    }
+
+    return digits
+      .replace(/^(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{5})(\d)/, "$1-$2");
+  }
+
+  function getCustomerPayload() {
+    return {
+      nome: normalizeText(customerForm.nome),
+      cpf_cnpj: normalizeText(customerForm.cpf_cnpj),
+      telefone: normalizeText(customerForm.telefone),
+      whatsapp: normalizeText(customerForm.whatsapp),
+      email: normalizeLowercaseInput(customerForm.email),
+      endereco: normalizeText(customerForm.endereco),
+      bairro: normalizeText(customerForm.bairro),
+      cidade: normalizeText(customerForm.cidade),
+      estado: normalizeUppercaseInput(customerForm.estado),
+      observacoes: normalizeText(customerForm.observacoes),
+      ativo: customerForm.ativo,
+    };
+  }
+
+  const loadCustomers = useCallback(async () => {
+  try {
+    setLoadingCustomers(true);
+
+    const data = await listCustomers();
+
+    setCustomers(Array.isArray(data) ? data : []);
+  } catch (error) {
+    console.error("Erro ao carregar clientes:", error);
+    alert("Não foi possível carregar os clientes.");
+  } finally {
+    setLoadingCustomers(false);
+  }
+}, []);
+
+useEffect(() => {
+  const timeoutId = window.setTimeout(() => {
+    void loadCustomers();
+  }, 0);
+
+  return () => {
+    window.clearTimeout(timeoutId);
+  };
+}, [loadCustomers]);
+
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const activeCustomers = useMemo(() => {
+    return customers.filter((customer) => customer.ativo);
+  }, [customers]);
+
+  const customerStats = useMemo(() => {
+    const cities = new Set(
+      activeCustomers
+        .map((customer) => customer.cidade?.trim())
+        .filter(Boolean)
+    );
+
+    const states = new Set(
+      activeCustomers
+        .map((customer) => customer.estado?.trim())
+        .filter(Boolean)
+    );
+
+    return {
+      total: activeCustomers.length,
+      cidades: cities.size,
+      estados: states.size,
+    };
+  }, [activeCustomers]);
+
+  const filteredCustomers = useMemo(() => {
+    const search = searchCustomer.trim().toLowerCase();
+
+    return customers.filter((customer) => {
+      const matchesStatus = showInactiveCustomers ? true : customer.ativo;
+
+      const searchableText = [
+        customer.nome,
+        customer.cpf_cnpj,
+        customer.telefone,
+        customer.whatsapp,
+        customer.email,
+        customer.endereco,
+        customer.bairro,
+        customer.cidade,
+        customer.estado,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = !search || searchableText.includes(search);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [customers, searchCustomer, showInactiveCustomers]);
+
+  function handleChangeCustomerForm<K extends keyof CustomerForm>(
+    field: K,
+    value: CustomerForm[K]
+  ) {
+    setCustomerForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function handleOpenCreateCustomer() {
+    setCustomerForm(emptyCustomerForm);
+    setCustomerModalOpen(true);
+  }
+
+  function handleOpenEditCustomer(customer: Customer) {
+    setCustomerForm({
+      id: customer.id,
+      nome: customer.nome ?? "",
+      cpf_cnpj: customer.cpf_cnpj ?? "",
+      telefone: customer.telefone ?? "",
+      whatsapp: customer.whatsapp ?? "",
+      email: customer.email ?? "",
+      endereco: customer.endereco ?? "",
+      bairro: customer.bairro ?? "",
+      cidade: customer.cidade ?? "",
+      estado: customer.estado ?? "",
+      observacoes: customer.observacoes ?? "",
+      ativo: customer.ativo,
+    });
+
+    setCustomerModalOpen(true);
+  }
+
+  function handleOpenDeleteCustomer(customer: Customer) {
+    setSelectedCustomerToDelete(customer);
+    setDeleteCustomerModalOpen(true);
+  }
+
+  async function handleSubmitCustomer(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (savingCustomer) return;
+
+    const payload = getCustomerPayload();
+
+    if (!payload.nome) {
+      alert("Informe o nome do cliente.");
+      return;
+    }
+
+    try {
+      setSavingCustomer(true);
+
+      if (customerForm.id) {
+        await updateCustomer(customerForm.id, payload);
+      } else {
+        await createCustomer(payload);
+      }
+
+      await loadCustomers();
+
+      setCustomerModalOpen(false);
+      setCustomerForm(emptyCustomerForm);
+    } catch (error) {
+      console.error("Erro ao salvar cliente:", error);
+      alert("Não foi possível salvar o cliente.");
+    } finally {
+      setSavingCustomer(false);
+    }
+  }
+
+  async function handleConfirmDeleteCustomer() {
+    if (!selectedCustomerToDelete || savingCustomer) return;
+
+    try {
+      setSavingCustomer(true);
+
+      await deleteCustomer(selectedCustomerToDelete.id);
+
+      await loadCustomers();
+
+      setDeleteCustomerModalOpen(false);
+      setSelectedCustomerToDelete(null);
+    } catch (error) {
+      console.error("Erro ao excluir cliente:", error);
+      alert(
+        "Não foi possível excluir o cliente. Se ele tiver vínculo com veículos ou ordens de serviço, o ideal será inativar."
+      );
+    } finally {
+      setSavingCustomer(false);
+    }
+  }
+
+  async function handleToggleCustomerStatus(customer: Customer) {
+    if (savingCustomer) return;
+
+    try {
+      setSavingCustomer(true);
+
+      await updateCustomer(customer.id, {
+        ativo: !customer.ativo,
+      });
+
+      await loadCustomers();
+    } catch (error) {
+      console.error("Erro ao alterar status do cliente:", error);
+      alert("Não foi possível alterar o status do cliente.");
+    } finally {
+      setSavingCustomer(false);
+    }
+  }
+
+  function exportCustomersCsv() {
+    const headers = [
+      "Nome",
+      "CPF/CNPJ",
+      "Telefone",
+      "WhatsApp",
+      "E-mail",
+      "Endereço",
+      "Bairro",
+      "Cidade",
+      "Estado",
+      "Status",
+      "Observações",
+    ];
+
+    const rows = filteredCustomers.map((customer) => [
+      customer.nome ?? "",
+      customer.cpf_cnpj ?? "",
+      customer.telefone ?? "",
+      customer.whatsapp ?? "",
+      customer.email ?? "",
+      customer.endereco ?? "",
+      customer.bairro ?? "",
+      customer.cidade ?? "",
+      customer.estado ?? "",
+      customer.ativo ? "Ativo" : "Inativo",
+      customer.observacoes ?? "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) =>
+        row
+          .map((value) => {
+            const safeValue = String(value).replace(/"/g, '""');
+            return `"${safeValue}"`;
+          })
+          .join(";")
+      )
+      .join("\n");
+
+    const blob = new Blob(["\ufeff" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "clientes.csv";
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard
+          title="Clientes"
+          value={customerStats.total}
+          subtitle="Clientes ativos cadastrados"
+          icon={UsersRound}
+        />
+
+        <StatCard
+          title="Cidades"
+          value={customerStats.cidades}
+          subtitle="Cidades com clientes ativos"
+          icon={MapPin}
+        />
+
+        <StatCard
+          title="Estados"
+          value={customerStats.estados}
+          subtitle="Estados com clientes ativos"
+          icon={IdCard}
+        />
+      </div>
+
+      <div className={premiumCardClass("p-4 sm:p-5")}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-zinc-950">Clientes</h2>
+
+            <p className="mt-1 text-sm text-zinc-500">
+              Cadastre, edite, inative e exporte os clientes da oficina.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={exportCustomersCsv}
+              disabled={loadingCustomers || filteredCustomers.length === 0}
+              className="inline-flex h-11 items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Exportar CSV
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenCreateCustomer}
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+            >
+              Novo cliente
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto]">
+          <input
+            type="text"
+            value={searchCustomer}
+            onChange={(e) => setSearchCustomer(e.target.value)}
+            placeholder="Buscar por nome, CPF/CNPJ, telefone, cidade ou e-mail"
+            className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-zinc-950"
+          />
+
+          <label className="flex h-11 cursor-pointer items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700">
+            <input
+              type="checkbox"
+              checked={showInactiveCustomers}
+              onChange={(e) => setShowInactiveCustomers(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Mostrar inativos
+          </label>
+        </div>
+
+        <div className="mt-5 overflow-hidden rounded-3xl border border-zinc-200">
+          {loadingCustomers ? (
+            <div className="flex min-h-40 items-center justify-center text-sm text-zinc-500">
+              Carregando clientes...
+            </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="flex min-h-40 items-center justify-center px-4 text-center text-sm text-zinc-500">
+              Nenhum cliente encontrado.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-zinc-200 text-sm">
+                <thead className="bg-zinc-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700">
+                      Cliente
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700">
+                      Contato
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700">
+                      Endereço
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-700">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold text-zinc-700">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-zinc-100 bg-white">
+                  {filteredCustomers.map((customer) => (
+                    <tr key={customer.id} className="hover:bg-zinc-50/70">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-zinc-950">
+                          {customer.nome}
+                        </div>
+
+                        {customer.cpf_cnpj ? (
+                          <div className="mt-1 text-xs text-zinc-500">
+                            CPF/CNPJ: {customer.cpf_cnpj}
+                          </div>
+                        ) : null}
+                      </td>
+
+                      <td className="px-4 py-3 text-zinc-600">
+                        {customer.telefone ? (
+                          <div className="text-xs text-zinc-500">
+                            Tel: {customer.telefone}
+                          </div>
+                        ) : null}
+
+                        {customer.whatsapp ? (
+                          <div className="text-xs text-zinc-500">
+                            WhatsApp: {customer.whatsapp}
+                          </div>
+                        ) : null}
+
+                        {customer.email ? (
+                          <div className="text-xs text-zinc-500">
+                            {customer.email}
+                          </div>
+                        ) : null}
+
+                        {!customer.telefone &&
+                        !customer.whatsapp &&
+                        !customer.email ? (
+                          <div className="text-xs text-zinc-400">-</div>
+                        ) : null}
+                      </td>
+
+                      <td className="px-4 py-3 text-zinc-600">
+                        {customer.endereco ? (
+                          <div>{customer.endereco}</div>
+                        ) : null}
+
+                        {[customer.bairro, customer.cidade, customer.estado]
+                          .filter(Boolean)
+                          .join(" / ") || "-"}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                            customer.ativo
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-zinc-100 text-zinc-500"
+                          )}
+                        >
+                          {customer.ativo ? "Ativo" : "Inativo"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditCustomer(customer)}
+                            className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100"
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCustomerStatus(customer)}
+                            disabled={savingCustomer}
+                            className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {customer.ativo ? "Inativar" : "Ativar"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDeleteCustomer(customer)}
+                            disabled={savingCustomer}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {customerModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-zinc-950">
+                  {customerForm.id ? "Editar cliente" : "Novo cliente"}
+                </h3>
+
+                <p className="mt-1 text-sm text-zinc-500">
+                  Preencha os dados cadastrais e de contato do cliente.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCustomerModalOpen(false)}
+                disabled={savingCustomer}
+                className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitCustomer} className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Nome do cliente
+                  </label>
+
+                  <input
+                    type="text"
+                    value={customerForm.nome}
+                    onChange={(e) =>
+                      handleChangeCustomerForm("nome", e.target.value)
+                    }
+                    placeholder="Ex: João da Silva"
+                    maxLength={100}
+                    required
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    CPF/CNPJ
+                  </label>
+
+                  <input
+                    type="text"
+                    value={customerForm.cpf_cnpj}
+                    onChange={(e) =>
+                      handleChangeCustomerForm(
+                        "cpf_cnpj",
+                        formatCpfCnpj(e.target.value)
+                      )
+                    }
+                    placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                    maxLength={18}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Telefone
+                  </label>
+
+                  <input
+                    type="text"
+                    value={customerForm.telefone}
+                    onChange={(e) =>
+                      handleChangeCustomerForm(
+                        "telefone",
+                        formatPhoneLike(e.target.value)
+                      )
+                    }
+                    placeholder="(84) 3333-3333"
+                    maxLength={15}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    WhatsApp
+                  </label>
+
+                  <input
+                    type="text"
+                    value={customerForm.whatsapp}
+                    onChange={(e) =>
+                      handleChangeCustomerForm(
+                        "whatsapp",
+                        formatPhoneLike(e.target.value)
+                      )
+                    }
+                    placeholder="(84) 99999-9999"
+                    maxLength={15}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    E-mail
+                  </label>
+
+                  <input
+                    type="email"
+                    value={customerForm.email}
+                    onChange={(e) =>
+                      handleChangeCustomerForm(
+                        "email",
+                        e.target.value.toLowerCase()
+                      )
+                    }
+                    placeholder="cliente@email.com"
+                    maxLength={100}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Endereço
+                  </label>
+
+                  <input
+                    type="text"
+                    value={customerForm.endereco}
+                    onChange={(e) =>
+                      handleChangeCustomerForm("endereco", e.target.value)
+                    }
+                    placeholder="Rua, avenida, número"
+                    maxLength={120}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Bairro
+                  </label>
+
+                  <input
+                    type="text"
+                    value={customerForm.bairro}
+                    onChange={(e) =>
+                      handleChangeCustomerForm("bairro", e.target.value)
+                    }
+                    placeholder="Ex: Centro"
+                    maxLength={80}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Cidade
+                  </label>
+
+                  <input
+                    type="text"
+                    value={customerForm.cidade}
+                    onChange={(e) =>
+                      handleChangeCustomerForm("cidade", e.target.value)
+                    }
+                    placeholder="Ex: Natal"
+                    maxLength={80}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-zinc-800">
+                    Estado
+                  </label>
+
+                  <input
+                    type="text"
+                    value={customerForm.estado}
+                    onChange={(e) =>
+                      handleChangeCustomerForm(
+                        "estado",
+                        e.target.value.toUpperCase().slice(0, 2)
+                      )
+                    }
+                    placeholder="RN"
+                    maxLength={2}
+                    className="h-11 w-full rounded-2xl border border-zinc-200 px-4 text-sm uppercase outline-none focus:border-zinc-950"
+                  />
+                </div>
+
+                <label className="flex h-11 items-center gap-2 self-end rounded-2xl border border-zinc-200 px-4 text-sm font-medium text-zinc-700">
+                  <input
+                    type="checkbox"
+                    checked={customerForm.ativo}
+                    onChange={(e) =>
+                      handleChangeCustomerForm("ativo", e.target.checked)
+                    }
+                    className="h-4 w-4"
+                  />
+                  Cliente ativo
+                </label>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-zinc-800">
+                  Observações
+                </label>
+
+                <textarea
+                  value={customerForm.observacoes}
+                  onChange={(e) =>
+                    handleChangeCustomerForm("observacoes", e.target.value)
+                  }
+                  placeholder="Observações internas sobre o cliente."
+                  maxLength={300}
+                  className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-zinc-950"
+                />
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setCustomerModalOpen(false)}
+                  disabled={savingCustomer}
+                  className="h-11 rounded-2xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={savingCustomer}
+                  className="h-11 rounded-2xl bg-zinc-950 px-5 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingCustomer ? "Salvando..." : "Salvar cliente"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteCustomerModalOpen && selectedCustomerToDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-2xl sm:p-6">
+            <h3 className="text-lg font-bold text-zinc-950">
+              Excluir cliente?
+            </h3>
+
+            <p className="mt-2 text-sm text-zinc-500">
+              Você está prestes a excluir o cliente{" "}
+              <strong className="text-zinc-900">
+                {selectedCustomerToDelete.nome}
+              </strong>
+              . Essa ação deve ser usada somente se ele ainda não possuir
+              veículos ou ordens de serviço vinculadas.
+            </p>
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteCustomerModalOpen(false);
+                  setSelectedCustomerToDelete(null);
+                }}
+                disabled={savingCustomer}
+                className="h-11 rounded-2xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCustomer}
+                disabled={savingCustomer}
+                className="h-11 rounded-2xl bg-red-600 px-5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingCustomer ? "Excluindo..." : "Excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <AdminClearDataCard
+          isAdmin={isAdmin}
+          target="clientes"
+          title="Limpar clientes"
+          description="Remove todos os clientes cadastrados. Se futuramente houver veículos ou ordens de serviço vinculadas, pode ser necessário limpar esses vínculos antes."
+          confirmationText="LIMPAR CLIENTES"
+          onCleared={loadCustomers}
+        />
     </div>
   );
 }
@@ -5861,53 +6923,61 @@ export default function EstoqueMecanicaFrontend() {
       title: "Relatórios",
       subtitle: "Consultas rápidas para operação e reposição",
     },
+    clientes: {
+      title: "Clientes",
+      subtitle: "Cadastro e gerenciamento dos clientes da oficina",
+    },
   };
 
-  const renderPage = () => {
-    switch (visiblePage) {
-      case "produtos":
-        return (
-          <ProductsPage
-            products={products}
-            loading={loadingProducts}
-            onCreated={refreshAll}
-          />
-        );
+const renderPage = () => {
+  switch (visiblePage) {
+    case "produtos":
+      return (
+        <ProductsPage
+          products={products}
+          loading={loadingProducts}
+          onCreated={refreshAll}
+          isAdmin={isAdmin}
+        />
+      );
 
-      case "entradas":
-        return <EntriesPage onCreated={refreshAll} />;
+    case "entradas":
+      return <EntriesPage onCreated={refreshAll} isAdmin={isAdmin} />;
 
-      case "saidas":
-        return <OutputsPage onCreated={refreshAll} />;
+    case "saidas":
+      return <OutputsPage onCreated={refreshAll} isAdmin={isAdmin} />;
 
-      case "movimentacoes":
-        return <MovementsPage />;
+    case "movimentacoes":
+      return <MovementsPage isAdmin={isAdmin} onCleared={refreshAll} />;
 
-      case "usuario":
-        return <UserPage onLogout={handleLogout} />;
+    case "usuario":
+      return <UserPage onLogout={handleLogout} />;
 
-      case "fornecedores":
-        return <SuppliersPage />;
+    case "clientes":
+      return <CustomersPage isAdmin={isAdmin} />;
 
-      case "relatorios":
-        return (
-          <ReportsPage
-            products={products}
-            movements={dashboard?.ultimasMovimentacoes ?? []}
-          />
-        );
+    case "fornecedores":
+      return <SuppliersPage isAdmin={isAdmin} />;
 
-      case "usuarios":
-        return isAdmin ? (
-          <UsersPage />
-        ) : (
-          <DashboardPage dashboard={dashboard} loading={loadingDashboard} />
-        );
+    case "relatorios":
+      return (
+        <ReportsPage
+          products={products}
+          movements={dashboard?.ultimasMovimentacoes ?? []}
+        />
+      );
 
-      default:
-        return <DashboardPage dashboard={dashboard} loading={loadingDashboard} />;
-    }
-  };
+    case "usuarios":
+      return isAdmin ? (
+        <UsersPage />
+      ) : (
+        <DashboardPage dashboard={dashboard} loading={loadingDashboard} />
+      );
+
+    default:
+      return <DashboardPage dashboard={dashboard} loading={loadingDashboard} />;
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#f5f7fa] text-zinc-900">

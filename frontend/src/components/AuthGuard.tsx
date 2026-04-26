@@ -1,86 +1,63 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+type AuthGuardProps = {
+  children: React.ReactNode;
+};
+
+export default function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const { user, profile, loading, profileLoading } = useAuth();
-
-  const [timeoutReached, setTimeoutReached] = useState(false);
-
-  const isLoginPage = pathname === "/login";
-  const isPrimeiroAcessoPage = pathname === "/primeiro-acesso";
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setTimeoutReached(true);
-    }, 8000);
-
-    return () => window.clearTimeout(timer);
-  }, []);
+  const { user, profile, loading, profileLoading, profileError } = useAuth();
 
   useEffect(() => {
     if (loading || profileLoading) return;
 
     if (!user) {
-      if (!isLoginPage) {
+      if (pathname !== "/login") {
         router.replace("/login");
       }
 
       return;
     }
 
-    if (!profile) {
-      return;
-    }
+    if (!profile) return;
 
-    if (!profile.ativo) {
-      return;
-    }
+    if (!profile.ativo) return;
 
-    if (profile.precisa_trocar_senha && !isPrimeiroAcessoPage) {
+    if (profile.precisa_trocar_senha && pathname !== "/primeiro-acesso") {
       router.replace("/primeiro-acesso");
       return;
     }
 
-    if (!profile.precisa_trocar_senha && (isLoginPage || isPrimeiroAcessoPage)) {
+    if (!profile.precisa_trocar_senha && pathname === "/primeiro-acesso") {
       router.replace("/");
     }
-  }, [
-    user,
-    profile,
-    loading,
-    profileLoading,
-    isLoginPage,
-    isPrimeiroAcessoPage,
-    router,
-  ]);
+  }, [user, profile, loading, profileLoading, pathname, router]);
 
-  if (loading || profileLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
-        <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-4 text-sm text-zinc-600 shadow-sm">
-          {timeoutReached
-            ? "Ainda carregando. Verifique as variáveis de ambiente e a conexão com o Supabase."
-            : "Carregando sistema..."}
+        <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-600 shadow-sm">
+          Carregando sistema...
         </div>
       </div>
     );
   }
 
   if (!user) {
-    if (isLoginPage) {
-      return <>{children}</>;
-    }
+    return null;
+  }
 
+  if (profileLoading && !profile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
-        <div className="rounded-2xl border border-zinc-200 bg-white px-6 py-4 text-sm text-zinc-600 shadow-sm">
-          Redirecionando para o login...
+        <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-600 shadow-sm">
+          Carregando perfil...
         </div>
       </div>
     );
@@ -89,14 +66,23 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!profile) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
-        <div className="w-full max-w-md rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-lg font-bold text-zinc-950">
-            Usuário sem vínculo no sistema
+        <div className="max-w-md rounded-2xl border border-amber-200 bg-white px-6 py-5 text-center shadow-sm">
+          <h1 className="text-base font-bold text-zinc-950">
+            Perfil não carregado
           </h1>
-          <p className="mt-3 text-sm leading-6 text-zinc-600">
-            Seu login existe no Supabase Auth, mas não há cadastro correspondente na tabela de
-            usuários do sistema.
+
+          <p className="mt-2 text-sm text-zinc-600">
+            {profileError ||
+              "Seu login existe, mas não foi possível carregar o cadastro correspondente na tabela de usuários."}
           </p>
+
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 h-10 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          >
+            Tentar novamente
+          </button>
         </div>
       </div>
     );
@@ -105,10 +91,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!profile.ativo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
-        <div className="w-full max-w-md rounded-3xl border border-red-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-lg font-bold text-zinc-950">Usuário inativo</h1>
-          <p className="mt-3 text-sm leading-6 text-zinc-600">
-            Seu usuário está inativo. Entre em contato com o administrador do sistema.
+        <div className="max-w-md rounded-2xl border border-red-200 bg-white px-6 py-5 text-center shadow-sm">
+          <h1 className="text-base font-bold text-zinc-950">Usuário inativo</h1>
+
+          <p className="mt-2 text-sm text-zinc-600">
+            Entre em contato com o responsável pelo sistema.
           </p>
         </div>
       </div>

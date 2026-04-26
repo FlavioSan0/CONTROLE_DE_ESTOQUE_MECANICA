@@ -3,13 +3,11 @@
     "target": "ES2020",
     "module": "commonjs",
     "rootDir": "src",
-    "baseUrl": "./src",
     "outDir": "dist",
     "esModuleInterop": true,
     "strict": true,
     "typeRoots": ["./node_modules/@types", "./src/types"],
-    "skipLibCheck": true,
-    "ignoreDeprecations": "5.0"
+    "skipLibCheck": true
   },
   "include": ["src"]
 }

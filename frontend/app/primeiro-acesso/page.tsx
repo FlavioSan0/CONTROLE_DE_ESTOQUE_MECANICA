@@ -5,10 +5,19 @@ import { useRouter } from "next/navigation";
 import { KeyRound, ShieldCheck } from "lucide-react";
 import { supabase } from "../../src/lib/supabase";
 import { useAuth } from "../../src/contexts/AuthContext";
+import { api } from "../../src/lib/api";
 
 export default function PrimeiroAcessoPage() {
   const router = useRouter();
-  const { user, profile, loading, profileLoading, signOut } = useAuth();
+
+  const {
+    user,
+    profile,
+    loading,
+    profileLoading,
+    signOut,
+    refreshProfile,
+  } = useAuth();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -51,57 +60,54 @@ export default function PrimeiroAcessoPage() {
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (password.length < 6) {
-      setErrorMessage("A nova senha deve ter pelo menos 6 caracteres.");
+    if (password.trim().length < 6) {
+      setErrorMessage("A nova senha precisa ter pelo menos 6 caracteres.");
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage("A confirmação de senha não confere.");
+      setErrorMessage("As senhas não conferem.");
       return;
     }
 
-    if (!user || !profile) {
-      setErrorMessage("Usuário não encontrado.");
-      return;
-    }
+    setSubmitting(true);
 
     try {
-      setSubmitting(true);
-
-      const { error } = await supabase.auth.updateUser({
+      const { error: updatePasswordError } = await supabase.auth.updateUser({
         password,
       });
 
-      if (error) {
-        const msg = error.message?.toLowerCase() ?? "";
-
-        if (msg.includes("different from the old password")) {
-          setErrorMessage("A nova senha precisa ser diferente da senha temporária atual.");
-        } else {
-          setErrorMessage(error.message);
-        }
-
+      if (updatePasswordError) {
+        setErrorMessage(updatePasswordError.message);
         return;
       }
 
-      setSuccessMessage("Senha alterada com sucesso. Voltando para o login...");
+      await api.patch("/usuarios/finalizar-primeiro-acesso");
 
-      await signOut();
-      router.replace("/login");
+      await refreshProfile();
+
+      setSuccessMessage("Senha alterada com sucesso.");
+
+      router.replace("/");
       router.refresh();
-    } catch (err: unknown) {
-      console.error("Erro ao alterar senha no primeiro acesso:", err);
-      setErrorMessage("Não foi possível alterar a senha.");
+    } catch (error) {
+      console.error("Erro ao finalizar primeiro acesso:", error);
+
+      setErrorMessage(
+        "Não foi possível finalizar o primeiro acesso. Verifique sua conexão e tente novamente."
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   async function handleLogout() {
-    await signOut();
-    router.replace("/login");
-    router.refresh();
+    try {
+      await signOut();
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
   }
 
   return (
