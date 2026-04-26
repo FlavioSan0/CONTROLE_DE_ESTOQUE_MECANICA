@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
@@ -28,6 +29,7 @@ type AuthContextType = {
   profile: UserProfile | null;
   loading: boolean;
   profileLoading: boolean;
+  profileError: string;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -41,6 +43,7 @@ type ErrorWithResponse = {
       message?: string;
     };
   };
+  message?: string;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -58,44 +61,41 @@ function getResponseStatus(error: unknown) {
   return null;
 }
 
-function getResponseMessage(error: unknown) {
-  if (typeof error !== "object" || error === null || !("response" in error)) {
-    return null;
-  }
+function getErrorMessage(error: unknown) {
+  if (typeof error === "object" && error !== null) {
+    const err = error as ErrorWithResponse;
 
-  const response = (error as ErrorWithResponse).response;
-
-  return response?.data?.error || response?.data?.message || null;
-}
-
-function normalizeAuthErrorMessage(error: unknown) {
-  const status = getResponseStatus(error);
-  const responseMessage = getResponseMessage(error);
-
-  if (status === 401) {
-    return "Sessão inválida ou expirada. Faça login novamente.";
-  }
-
-  if (status === 403) {
-    return responseMessage || "Usuário sem permissão para acessar o sistema.";
-  }
-
-  if (status === 400 || status === 404) {
     return (
-      responseMessage ||
-      "Seu login existe, mas não há cadastro correspondente na tabela de usuários."
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      "Erro ao carregar perfil."
     );
   }
 
-  if (responseMessage) {
-    return responseMessage;
-  }
+  return "Erro ao carregar perfil.";
+}
 
-  if (error instanceof Error) {
-    return error.message;
-  }
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  return "Não foi possível carregar os dados do usuário.";
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -104,191 +104,256 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState("");
+
+  const mountedRef = useRef(false);
+  const loadedProfileUserIdRef = useRef<string | null>(null);
+  const profileRequestIdRef = useRef(0);
 
   const loadProfile = useCallback(
-    async (authUser?: User | null, currentSession?: Session | null) => {
-      setProfileLoading(true);
+    async (
+      authUser?: User | null,
+      currentSession?: Session | null,
+      options?: {
+        force?: boolean;
+      }
+    ) => {
+      const force = options?.force ?? false;
+
+      if (!authUser || !currentSession?.access_token) {
+        loadedProfileUserIdRef.current = null;
+        setProfile(null);
+        setProfileError("");
+        setProfileLoading(false);
+        return;
+      }
+
+      if (!force && loadedProfileUserIdRef.current === authUser.id && profile) {
+        setProfileLoading(false);
+        return;
+      }
+
+      const requestId = profileRequestIdRef.current + 1;
+      profileRequestIdRef.current = requestId;
 
       try {
-        if (!authUser || !currentSession?.access_token) {
-          setProfile(null);
-          return null;
-        }
+        setProfileLoading(true);
+        setProfileError("");
 
-        const me = await getMe();
+        const me = await withTimeout(
+          getMe(),
+          12000,
+          "Tempo excedido ao carregar perfil. Verifique se o backend está online."
+        );
+
+        if (profileRequestIdRef.current !== requestId) return;
+
         setProfile(me);
-
-        return me;
+        loadedProfileUserIdRef.current = authUser.id;
+        setProfileError("");
       } catch (error: unknown) {
-        console.error("Erro ao carregar perfil do usuário via backend:", error);
+        if (profileRequestIdRef.current !== requestId) return;
 
+        console.error("Erro ao carregar perfil:", error);
+
+        const status = getResponseStatus(error);
+        const message = getErrorMessage(error);
+
+        loadedProfileUserIdRef.current = null;
         setProfile(null);
 
-        throw error;
+        if (status === 401) {
+          setProfileError("Sessão expirada. Faça login novamente.");
+        } else if (status === 403) {
+          setProfileError("Usuário sem permissão ou inativo.");
+        } else if (status === 404) {
+          setProfileError("Usuário não vinculado à tabela de usuários.");
+        } else {
+          setProfileError(message);
+        }
       } finally {
-        setProfileLoading(false);
+        if (profileRequestIdRef.current === requestId) {
+          setProfileLoading(false);
+        }
       }
     },
-    []
+    [profile]
   );
 
   useEffect(() => {
-    let mounted = true;
+    if (mountedRef.current) return;
 
-    const loadSession = async () => {
-      setLoading(true);
-      setProfileLoading(true);
+    mountedRef.current = true;
 
+    let active = true;
+
+    async function loadInitialSession() {
       try {
+        setLoading(true);
+        setProfileLoading(false);
+
         const {
           data: { session: currentSession },
+          error,
         } = await supabase.auth.getSession();
 
-        if (!mounted) return;
+        if (!active) return;
+
+        if (error) {
+          console.error("Erro ao buscar sessão:", error);
+
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          setProfileLoading(false);
+          setProfileError("Erro ao buscar sessão.");
+          return;
+        }
 
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
+        setLoading(false);
 
         if (currentSession?.user && currentSession?.access_token) {
-          try {
-            await loadProfile(currentSession.user, currentSession);
-          } catch {
-            if (!mounted) return;
-            setProfile(null);
-          }
+          await loadProfile(currentSession.user, currentSession, {
+            force: true,
+          });
         } else {
           setProfile(null);
+          setProfileError("");
           setProfileLoading(false);
         }
-      } catch (error: unknown) {
-        console.error("Erro ao carregar sessão:", error);
+      } catch (error) {
+        console.error("Erro ao carregar sessão inicial:", error);
 
-        if (!mounted) return;
+        if (!active) return;
 
         setSession(null);
         setUser(null);
         setProfile(null);
+        setLoading(false);
         setProfileLoading(false);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        setProfileError("Erro ao carregar sessão inicial.");
       }
-    };
+    }
 
-    loadSession();
+    loadInitialSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      if (!mounted) return;
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!active) return;
 
-      setLoading(true);
+      console.log("Auth event:", event);
 
-      try {
+      if (event === "SIGNED_OUT") {
+        profileRequestIdRef.current += 1;
+        loadedProfileUserIdRef.current = null;
+
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setProfileError("");
+        setLoading(false);
+        setProfileLoading(false);
+        return;
+      }
+
+      if (event === "SIGNED_IN") {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
+        setLoading(false);
 
         if (nextSession?.user && nextSession?.access_token) {
-          try {
-            await loadProfile(nextSession.user, nextSession);
-          } catch {
-            if (!mounted) return;
-            setProfile(null);
-          }
-        } else {
-          setProfile(null);
-          setProfileLoading(false);
+          void loadProfile(nextSession.user, nextSession, {
+            force: true,
+          });
         }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+
+        return;
+      }
+
+      /**
+       * IMPORTANTE:
+       * Esses eventos podem acontecer quando troca de aba, recarrega token,
+       * volta o foco do navegador etc.
+       * Não vamos buscar perfil novamente aqui para evitar loop de carregamento.
+       */
+      if (
+        event === "INITIAL_SESSION" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "USER_UPDATED"
+      ) {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        setLoading(false);
+        setProfileLoading(false);
+        return;
       }
     });
 
     return () => {
-      mounted = false;
+      active = false;
       subscription.unsubscribe();
     };
   }, [loadProfile]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      setLoading(true);
+      setLoading(false);
       setProfileLoading(true);
+      setProfileError("");
 
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-        if (error) {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-
-          return { error: error.message };
-        }
-
-        setSession(data.session ?? null);
-        setUser(data.user ?? null);
-
-        try {
-          await loadProfile(data.user ?? null, data.session ?? null);
-        } catch (profileError: unknown) {
-          const message = normalizeAuthErrorMessage(profileError);
-
-          await supabase.auth.signOut();
-
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-
-          return { error: message };
-        }
-
-        return { error: null };
-      } catch (error: unknown) {
-        console.error("Erro ao fazer login:", error);
-
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-
-        return {
-          error: "Não foi possível fazer login. Verifique sua conexão e tente novamente.",
-        };
-      } finally {
-        setLoading(false);
+      if (error) {
         setProfileLoading(false);
+        return { error: error.message };
       }
+
+      setSession(data.session ?? null);
+      setUser(data.user ?? null);
+
+      await loadProfile(data.user ?? null, data.session ?? null, {
+        force: true,
+      });
+
+      return { error: null };
     },
     [loadProfile]
   );
 
   const signOut = useCallback(async () => {
-    setLoading(true);
-    setProfileLoading(true);
-
     try {
       await supabase.auth.signOut();
+    } catch (error) {
+      console.warn("Erro ao sair. Limpando sessão local mesmo assim:", error);
     } finally {
-      setProfile(null);
+      profileRequestIdRef.current += 1;
+      loadedProfileUserIdRef.current = null;
+
       setSession(null);
       setUser(null);
+      setProfile(null);
+      setProfileError("");
       setLoading(false);
       setProfileLoading(false);
+
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
     }
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    try {
-      await loadProfile(user, session);
-    } catch (error: unknown) {
-      console.error("Erro ao atualizar perfil:", error);
-    }
+    await loadProfile(user, session, {
+      force: true,
+    });
   }, [loadProfile, user, session]);
 
   const value = useMemo(
@@ -298,11 +363,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       loading,
       profileLoading,
+      profileError,
       signIn,
       signOut,
       refreshProfile,
     }),
-    [user, session, profile, loading, profileLoading, signIn, signOut, refreshProfile]
+    [
+      user,
+      session,
+      profile,
+      loading,
+      profileLoading,
+      profileError,
+      signIn,
+      signOut,
+      refreshProfile,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

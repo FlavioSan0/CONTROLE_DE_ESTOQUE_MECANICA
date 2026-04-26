@@ -4,7 +4,7 @@ import { AuthProvider } from "../src/contexts/AuthContext";
 
 export const metadata: Metadata = {
   title: "Controle de Estoque",
-  description: "Sistema de controle de estoque da mecânica",
+  description: "Sistema de controle de estoque",
 };
 
 export default function RootLayout({
