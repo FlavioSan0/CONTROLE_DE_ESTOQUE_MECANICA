@@ -18,42 +18,63 @@ export default function LoginPage() {
     if (loading || profileLoading) return;
     if (!user) return;
 
-    if (profile && !profile.ativo) {
-      setErrorMessage("Seu usuário está inativo. Entre em contato com o responsável pelo sistema.");
-      return;
-    }
-
-    if (profile?.precisa_trocar_senha) {
-      router.replace("/primeiro-acesso");
-      return;
-    }
-
-    if (profile) {
-      router.replace("/");
-    }
-  }, [user, profile, loading, profileLoading, router]);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-    setErrorMessage("");
-
-    const { error } = await signIn(email.trim(), password);
-
-    if (error) {
-      if (
-        error.toLowerCase().includes("invalid login credentials") ||
-        error.toLowerCase().includes("invalid")
-      ) {
-        setErrorMessage("E-mail ou senha inválidos.");
-      } else {
-        setErrorMessage(error);
-      }
+    if (!profile) {
+      setErrorMessage(
+        "Login realizado, mas não foi encontrado cadastro correspondente na tabela de usuários."
+      );
       setSubmitting(false);
       return;
     }
 
-    setSubmitting(false);
+    if (!profile.ativo) {
+      setErrorMessage("Seu usuário está inativo. Entre em contato com o responsável pelo sistema.");
+      setSubmitting(false);
+      return;
+    }
+
+    if (profile.precisa_trocar_senha) {
+      router.replace("/primeiro-acesso");
+      return;
+    }
+
+    router.replace("/");
+  }, [user, profile, loading, profileLoading, router]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (submitting) return;
+
+    setErrorMessage("");
+    setSubmitting(true);
+
+    try {
+      const result = await signIn(email, password);
+
+      if (result.error) {
+        const message = result.error.toLowerCase();
+
+        if (message.includes("invalid login credentials")) {
+          setErrorMessage("E-mail ou senha inválidos.");
+        } else if (message.includes("email not confirmed")) {
+          setErrorMessage("E-mail ainda não confirmado.");
+        } else {
+          setErrorMessage(result.error);
+        }
+
+        setSubmitting(false);
+        return;
+      }
+
+      /*
+        Não redireciona aqui.
+        O useEffect acima vai decidir o destino correto depois que user/profile forem carregados.
+      */
+    } catch (error) {
+      console.error("Erro ao fazer login:", error);
+      setErrorMessage("Não foi possível fazer login. Verifique sua conexão e tente novamente.");
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -63,7 +84,9 @@ export default function LoginPage() {
           <div className="mb-4 rounded-3xl bg-zinc-950 p-4 text-white shadow-sm">
             <Wrench className="h-7 w-7" />
           </div>
+
           <h1 className="text-2xl font-bold text-zinc-950">Controle de Estoque</h1>
+
           <p className="mt-2 text-sm text-zinc-500">
             Entre com seu usuário para acessar o sistema.
           </p>
@@ -72,8 +95,10 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-zinc-800">E-mail</label>
+
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+
               <input
                 type="email"
                 value={email}
@@ -82,14 +107,17 @@ export default function LoginPage() {
                 className="h-11 w-full rounded-xl border border-zinc-300 bg-white pl-10 pr-3 text-sm text-zinc-950 placeholder:text-zinc-400 outline-none transition focus:border-zinc-950"
                 autoComplete="email"
                 required
+                disabled={submitting}
               />
             </div>
           </div>
 
           <div>
             <label className="mb-2 block text-sm font-medium text-zinc-800">Senha</label>
+
             <div className="relative">
               <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+
               <input
                 type="password"
                 value={password}
@@ -98,6 +126,7 @@ export default function LoginPage() {
                 className="h-11 w-full rounded-xl border border-zinc-300 bg-white pl-10 pr-3 text-sm text-zinc-950 placeholder:text-zinc-400 outline-none transition focus:border-zinc-950"
                 autoComplete="current-password"
                 required
+                disabled={submitting}
               />
             </div>
           </div>
@@ -110,10 +139,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={submitting || loading}
+            disabled={submitting || loading || profileLoading}
             className="h-11 w-full rounded-xl bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {submitting ? "Entrando..." : "Entrar"}
+            {submitting || profileLoading ? "Entrando..." : "Entrar"}
           </button>
         </form>
       </div>
