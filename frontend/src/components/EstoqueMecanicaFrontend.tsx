@@ -988,7 +988,7 @@ function Sidebar({
   });
 
   return (
-    <aside className="hidden h-screen w-76 flex-col border-r border-zinc-200/80 bg-white/95 backdrop-blur lg:flex">
+    <aside className="hidden h-screen w-72 shrink-0 flex-col border-r border-zinc-200/80 bg-white/95 backdrop-blur lg:flex xl:w-76">
       <div className="border-b border-zinc-200/80 bg-gradient-to-r from-white via-zinc-50/70 to-white p-6">
         <div className="flex items-center gap-3">
           <div className="rounded-3xl bg-zinc-950 p-3 text-white shadow-[0_8px_20px_rgba(15,23,42,0.18)]">
@@ -2608,6 +2608,13 @@ function ProductsPage({
     );
   }
 
+  function formatMoney(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(Number(value ?? 0));
+}
+
   function handleSort(column: ProductSortKey) {
     setCurrentPage(1);
 
@@ -2707,9 +2714,9 @@ function ProductsPage({
 
         <CardContent className="space-y-5 p-6">
           <div className="rounded-3xl border border-zinc-200/80 bg-zinc-50/60 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.03)]">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-1 flex-col gap-3 lg:flex-row">
-                <div className="relative flex-1">
+            <div className="grid gap-3">
+              <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_180px_200px_210px]">
+                <div className="relative min-w-0">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                   <Input
                     value={query}
@@ -2722,49 +2729,47 @@ function ProductsPage({
                   />
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-3 xl:w-[650px]">
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-12 rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 shadow-sm">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent className="border-zinc-200 bg-white">
-                      <SelectItem value="todos">Todos os status</SelectItem>
-                      <SelectItem value="ok">Estoque normal</SelectItem>
-                      <SelectItem value="baixo">Estoque baixo</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-12 rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 shadow-sm">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent className="border-zinc-200 bg-white">
+                    <SelectItem value="todos">Todos os status</SelectItem>
+                    <SelectItem value="ok">Estoque normal</SelectItem>
+                    <SelectItem value="baixo">Estoque baixo</SelectItem>
+                  </SelectContent>
+                </Select>
 
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="h-12 rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 shadow-sm">
-                      <SelectValue placeholder="Categoria" />
-                    </SelectTrigger>
-                    <SelectContent className="border-zinc-200 bg-white">
-                      <SelectItem value="todas">Todas categorias</SelectItem>
-                      {categories.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="h-12 rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 shadow-sm">
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent className="border-zinc-200 bg-white">
+                    <SelectItem value="todas">Todas categorias</SelectItem>
+                    {categories.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                  <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                    <SelectTrigger className="h-12 rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 shadow-sm">
-                      <SelectValue placeholder="Fornecedor" />
-                    </SelectTrigger>
-                    <SelectContent className="border-zinc-200 bg-white">
-                      <SelectItem value="todos">Todos fornecedores</SelectItem>
-                      {suppliers.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                  <SelectTrigger className="h-12 rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 shadow-sm">
+                    <SelectValue placeholder="Fornecedor" />
+                  </SelectTrigger>
+                  <SelectContent className="border-zinc-200 bg-white">
+                    <SelectItem value="todos">Todos fornecedores</SelectItem>
+                    {suppliers.map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <Button
                   variant="outline"
                   className="h-11 rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
@@ -2801,100 +2806,292 @@ function ProductsPage({
       </Card>
 
       <Card className={premiumCardClass("overflow-hidden")}>
-        <CardHeader className="border-b border-zinc-100 bg-gradient-to-r from-white via-zinc-50/60 to-white pb-4">
-          <CardTitle className="text-zinc-950">Produtos cadastrados</CardTitle>
-          <p className="text-sm text-zinc-500">
-            Visualização em tabela com foco em leitura rápida e acesso aos detalhes.
-          </p>
-        </CardHeader>
+  <CardHeader className="border-b border-zinc-100 bg-gradient-to-r from-white via-zinc-50/60 to-white pb-4">
+    <CardTitle className="text-zinc-950">Produtos cadastrados</CardTitle>
+    <p className="text-sm text-zinc-500">
+      Visualização em tabela no desktop e em cards no celular.
+    </p>
+  </CardHeader>
 
-        <CardContent className="p-6">
-          <div className="overflow-x-auto rounded-3xl border border-zinc-200/80">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-zinc-200 bg-zinc-50/90 hover:bg-zinc-50/90">
-                  <TableHead><SortButton label="Código" column="codigo" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
-                  <TableHead><SortButton label="Produto" column="nome" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
-                  <TableHead><SortButton label="Categoria" column="categoria" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
-                  <TableHead className="text-zinc-600">Marca</TableHead>
-                  <TableHead><SortButton label="Fornecedor" column="fornecedor" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
-                  <TableHead className="text-zinc-600">Localização</TableHead>
-                  <TableHead><SortButton label="Estoque" column="estoqueAtual" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
-                  <TableHead><SortButton label="Preço" column="preco" sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} /></TableHead>
-                  <TableHead className="text-zinc-600">Status</TableHead>
-                  <TableHead className="text-right text-zinc-600">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
+  <CardContent className="p-4 sm:p-6">
+    {/* Desktop / notebook */}
+    <div className="hidden overflow-x-auto rounded-3xl border border-zinc-200/80 lg:block">
+      <Table className="min-w-[1180px]">
+        <TableHeader>
+          <TableRow className="border-zinc-200 bg-zinc-50/90 hover:bg-zinc-50/90">
+            <TableHead className="w-[110px]">
+              <SortButton
+                label="Código"
+                column="codigo"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            </TableHead>
 
-              <TableBody>
-                {paginatedProducts.map((item) => (
-                  <TableRow key={item.id} className="border-zinc-100 bg-white hover:bg-zinc-50/60">
-                    <TableCell className="font-semibold text-zinc-950">{item.codigo}</TableCell>
-                    <TableCell className="max-w-[220px] font-medium text-zinc-900">{item.nome}</TableCell>
-                    <TableCell className="text-zinc-700">{item.categoria}</TableCell>
-                    <TableCell className="text-zinc-700">{item.marca}</TableCell>
-                    <TableCell className="text-zinc-700">{item.fornecedor}</TableCell>
-                    <TableCell className="text-zinc-700">{item.localizacao}</TableCell>
-                    <TableCell className="font-medium text-zinc-900">{item.estoqueAtual}</TableCell>
-                    <TableCell className="font-medium text-zinc-900">R$ {item.preco.toFixed(2)}</TableCell>
-                    <TableCell>
-                      {item.status === "baixo" ? (
-                        <Badge className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-50">Baixo</Badge>
-                      ) : (
-                        <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">Normal</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
-                          onClick={() => handleOpenDetails(item.id)}
-                        >
-                          Ver detalhes
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <TableHead className="w-[260px]">
+              <SortButton
+                label="Produto"
+                column="nome"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            </TableHead>
+
+            <TableHead className="w-[160px]">
+              <SortButton
+                label="Categoria"
+                column="categoria"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            </TableHead>
+
+            <TableHead className="w-[130px] text-zinc-600">Marca</TableHead>
+
+            <TableHead className="w-[240px]">
+              <SortButton
+                label="Fornecedor"
+                column="fornecedor"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            </TableHead>
+
+            <TableHead className="w-[120px] text-zinc-600">Localização</TableHead>
+
+            <TableHead className="w-[100px]">
+              <SortButton
+                label="Estoque"
+                column="estoqueAtual"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            </TableHead>
+
+            <TableHead className="w-[120px]">
+              <SortButton
+                label="Preço"
+                column="preco"
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              />
+            </TableHead>
+
+            <TableHead className="w-[90px] text-zinc-600">Status</TableHead>
+            <TableHead className="w-[130px] text-right text-zinc-600">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {paginatedProducts.map((item) => (
+            <TableRow
+              key={item.id}
+              className="border-zinc-100 bg-white hover:bg-zinc-50/60"
+            >
+              <TableCell className="whitespace-nowrap font-semibold text-zinc-950">
+                {item.codigo}
+              </TableCell>
+
+              <TableCell className="font-medium text-zinc-900">
+                <div className="max-w-[250px] truncate" title={item.nome}>
+                  {item.nome}
+                </div>
+              </TableCell>
+
+              <TableCell className="text-zinc-700">
+                <div className="max-w-[150px] truncate" title={item.categoria}>
+                  {item.categoria}
+                </div>
+              </TableCell>
+
+              <TableCell className="text-zinc-700">
+                <div className="max-w-[120px] truncate" title={item.marca}>
+                  {item.marca || "-"}
+                </div>
+              </TableCell>
+
+              <TableCell className="text-zinc-700">
+                <div className="max-w-[230px] truncate" title={item.fornecedor}>
+                  {item.fornecedor || "-"}
+                </div>
+              </TableCell>
+
+              <TableCell className="whitespace-nowrap text-zinc-700">
+                {item.localizacao || "-"}
+              </TableCell>
+
+              <TableCell className="whitespace-nowrap font-medium text-zinc-900">
+                {item.estoqueAtual}
+              </TableCell>
+
+              <TableCell className="whitespace-nowrap font-medium text-zinc-900">
+                {formatMoney(item.preco)}
+              </TableCell>
+
+              <TableCell>
+                {item.status === "baixo" ? (
+                  <Badge className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-50">
+                    Baixo
+                  </Badge>
+                ) : (
+                  <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
+                    Normal
+                  </Badge>
+                )}
+              </TableCell>
+
+              <TableCell>
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
+                    onClick={() => handleOpenDetails(item.id)}
+                  >
+                    Ver detalhes
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+
+    {/* Tablet / celular */}
+    <div className="space-y-3 lg:hidden">
+      {paginatedProducts.map((item) => (
+        <div
+          key={item.id}
+          className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-[0_8px_22px_rgba(15,23,42,0.05)]"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                {item.codigo}
+              </p>
+
+              <h3 className="mt-1 line-clamp-2 text-base font-bold text-zinc-950">
+                {item.nome}
+              </h3>
+
+              <p className="mt-1 text-sm text-zinc-500">
+                {item.categoria || "Sem categoria"}
+              </p>
+            </div>
+
+            {item.status === "baixo" ? (
+              <Badge className="shrink-0 border border-red-200 bg-red-50 text-red-700 hover:bg-red-50">
+                Baixo
+              </Badge>
+            ) : (
+              <Badge className="shrink-0 border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
+                Normal
+              </Badge>
+            )}
           </div>
 
-          {paginatedProducts.length === 0 ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-500">
-              Nenhum produto encontrado com os filtros aplicados.
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3">
+              <p className="text-xs text-zinc-500">Estoque</p>
+              <p className="mt-1 text-lg font-bold text-zinc-950">
+                {item.estoqueAtual}
+              </p>
             </div>
-          ) : null}
 
-          {sorted.length > 0 ? (
-            <div className="mt-5 flex flex-col gap-3 border-t border-zinc-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-zinc-600">
-                Mostrando {Math.min((currentPage - 1) * pageSize + 1, sorted.length)} a{" "}
-                {Math.min(currentPage * pageSize, sorted.length)} de{" "}
-                <span className="font-semibold text-zinc-950">{sorted.length}</span> produtos.
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100" onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1}>
-                  <ChevronLeft className="mr-1 h-4 w-4" />
-                  Anterior
-                </Button>
-
-                <div className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-800">
-                  Página {currentPage} de {totalPages}
-                </div>
-
-                <Button variant="outline" size="sm" className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100" onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages}>
-                  Próxima
-                  <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
+            <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3">
+              <p className="text-xs text-zinc-500">Preço</p>
+              <p className="mt-1 text-lg font-bold text-zinc-950">
+                {formatMoney(item.preco)}
+              </p>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+          </div>
+
+          <div className="mt-4 space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-3 text-sm">
+            <div className="flex justify-between gap-3">
+              <span className="text-zinc-500">Marca</span>
+              <span className="text-right font-medium text-zinc-800">
+                {item.marca || "-"}
+              </span>
+            </div>
+
+            <div className="flex justify-between gap-3">
+              <span className="text-zinc-500">Fornecedor</span>
+              <span className="max-w-[190px] truncate text-right font-medium text-zinc-800">
+                {item.fornecedor || "-"}
+              </span>
+            </div>
+
+            <div className="flex justify-between gap-3">
+              <span className="text-zinc-500">Localização</span>
+              <span className="text-right font-medium text-zinc-800">
+                {item.localizacao || "-"}
+              </span>
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            className="mt-4 h-11 w-full rounded-2xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
+            onClick={() => handleOpenDetails(item.id)}
+          >
+            Ver detalhes
+          </Button>
+        </div>
+      ))}
+    </div>
+
+    {paginatedProducts.length === 0 ? (
+      <div className="mt-4 rounded-2xl border border-dashed border-zinc-200 py-10 text-center text-sm text-zinc-500">
+        Nenhum produto encontrado com os filtros aplicados.
+      </div>
+    ) : null}
+
+    {sorted.length > 0 ? (
+      <div className="mt-5 flex flex-col gap-3 border-t border-zinc-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-zinc-600">
+          Mostrando {Math.min((currentPage - 1) * pageSize + 1, sorted.length)} a{" "}
+          {Math.min(currentPage * pageSize, sorted.length)} de{" "}
+          <span className="font-semibold text-zinc-950">{sorted.length}</span> produtos.
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
+            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Anterior
+          </Button>
+
+          <div className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-800">
+            Página {currentPage} de {totalPages}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl border-zinc-300 bg-white font-medium text-zinc-800 hover:bg-zinc-100"
+            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+          >
+            Próxima
+            <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    ) : null}
+  </CardContent>
+</Card>
 
       {editingId ? (
         <ProductFormDialog
@@ -7007,7 +7204,7 @@ const renderPage = () => {
       <div className="flex min-h-screen">
         <Sidebar page={visiblePage} setPage={setPage} isAdmin={isAdmin} />
 
-        <main className="flex-1">
+        <main className="min-w-0 flex-1 overflow-x-hidden">
           <AppHeader
             title={titleMap[visiblePage].title}
             subtitle={titleMap[visiblePage].subtitle}
