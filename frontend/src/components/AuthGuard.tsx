@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 type AuthGuardProps = {
   children: React.ReactNode;
@@ -10,40 +11,43 @@ type AuthGuardProps = {
 
 export default function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const { user, profile, loading, refreshProfile } = useAuth();
 
-  const { user, profile, loading, profileLoading, profileError } = useAuth();
+  const [profileGraceFinished, setProfileGraceFinished] = useState(false);
 
   useEffect(() => {
-    if (loading || profileLoading) return;
+    if (loading) return;
 
     if (!user) {
-      if (pathname !== "/login") {
-        router.replace("/login");
-      }
-
-      return;
+      router.replace("/login");
     }
+  }, [user, loading, router]);
 
-    if (!profile) return;
+  useEffect(() => {
+    setProfileGraceFinished(false);
 
-    if (!profile.ativo) return;
+    if (!user || profile || loading) return;
 
-    if (profile.precisa_trocar_senha && pathname !== "/primeiro-acesso") {
-      router.replace("/primeiro-acesso");
-      return;
-    }
+    const timer = window.setTimeout(() => {
+      setProfileGraceFinished(true);
+    }, 2500);
 
-    if (!profile.precisa_trocar_senha && pathname === "/primeiro-acesso") {
-      router.replace("/");
-    }
-  }, [user, profile, loading, profileLoading, pathname, router]);
+    return () => window.clearTimeout(timer);
+  }, [user, profile, loading]);
 
-  if (loading) {
+  if (loading || (user && !profile && !profileGraceFinished)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
-        <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-600 shadow-sm">
-          Carregando sistema...
+        <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-6 text-center shadow-[0_12px_35px_rgba(15,23,42,0.08)]">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-zinc-200 border-t-zinc-950" />
+
+          <h1 className="text-lg font-bold text-zinc-950">
+            Carregando perfil
+          </h1>
+
+          <p className="mt-2 text-sm leading-6 text-zinc-500">
+            Estamos validando seus dados de acesso e carregando as permissões do sistema.
+          </p>
         </div>
       </div>
     );
@@ -53,50 +57,52 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     return null;
   }
 
-  if (profileLoading && !profile) {
+  if (user && !profile && profileGraceFinished) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
-        <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-600 shadow-sm">
-          Carregando perfil...
-        </div>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
-        <div className="max-w-md rounded-2xl border border-amber-200 bg-white px-6 py-5 text-center shadow-sm">
-          <h1 className="text-base font-bold text-zinc-950">
+        <div className="w-full max-w-md rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-[0_12px_35px_rgba(15,23,42,0.08)]">
+          <h1 className="text-lg font-bold text-zinc-950">
             Perfil não carregado
           </h1>
 
-          <p className="mt-2 text-sm text-zinc-600">
-            {profileError ||
-              "Seu login existe, mas não foi possível carregar o cadastro correspondente na tabela de usuários."}
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Seu login existe, mas não foi possível carregar o cadastro correspondente na tabela de usuários.
           </p>
 
-          <button
+          <Button
             type="button"
-            onClick={() => window.location.reload()}
-            className="mt-4 h-10 rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+            onClick={() => {
+              setProfileGraceFinished(false);
+              void refreshProfile?.();
+            }}
+            className="mt-5 rounded-2xl bg-zinc-950 px-5 font-semibold text-white hover:bg-zinc-800"
           >
             Tentar novamente
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
-  if (!profile.ativo) {
+  if (profile && profile.ativo === false) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f7fa] px-4">
-        <div className="max-w-md rounded-2xl border border-red-200 bg-white px-6 py-5 text-center shadow-sm">
-          <h1 className="text-base font-bold text-zinc-950">Usuário inativo</h1>
+        <div className="w-full max-w-md rounded-3xl border border-red-200 bg-white p-6 text-center shadow-[0_12px_35px_rgba(15,23,42,0.08)]">
+          <h1 className="text-lg font-bold text-zinc-950">
+            Usuário inativo
+          </h1>
 
-          <p className="mt-2 text-sm text-zinc-600">
-            Entre em contato com o responsável pelo sistema.
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Sua conta está inativa. Entre em contato com um administrador para liberar o acesso.
           </p>
+
+          <Button
+            type="button"
+            onClick={() => router.replace("/login")}
+            className="mt-5 rounded-2xl bg-zinc-950 px-5 font-semibold text-white hover:bg-zinc-800"
+          >
+            Voltar para o login
+          </Button>
         </div>
       </div>
     );
