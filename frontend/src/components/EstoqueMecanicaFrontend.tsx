@@ -2815,77 +2815,78 @@ function ProductsPage({
 
   <CardContent className="p-4 sm:p-6">
     {/* Desktop / notebook */}
-    <div className="hidden overflow-x-auto rounded-3xl border border-zinc-200/80 lg:block">
-      <Table className="min-w-[1180px]">
+    <div className="hidden w-full overflow-x-auto rounded-3xl border border-zinc-200/80 lg:block">
+    <Table className="min-w-[1180px] table-fixed">
         <TableHeader>
-          <TableRow className="border-zinc-200 bg-zinc-50/90 hover:bg-zinc-50/90">
-            <TableHead className="w-[110px]">
-              <SortButton
-                label="Código"
-                column="codigo"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-            </TableHead>
+    <TableRow className="border-zinc-200 bg-zinc-50/90 hover:bg-zinc-50/90">
+    <TableHead className="w-[90px]">
+      <SortButton
+        label="Código"
+        column="codigo"
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+      />
+    </TableHead>
 
-            <TableHead className="w-[260px]">
-              <SortButton
-                label="Produto"
-                column="nome"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-            </TableHead>
+    <TableHead className="w-[320px]">
+      <SortButton
+        label="Produto"
+        column="nome"
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+      />
+    </TableHead>
 
-            <TableHead className="w-[160px]">
-              <SortButton
-                label="Categoria"
-                column="categoria"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-            </TableHead>
+    <TableHead className="w-[150px]">
+      <SortButton
+        label="Categoria"
+        column="categoria"
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+      />
+    </TableHead>
 
-            <TableHead className="w-[130px] text-zinc-600">Marca</TableHead>
+    <TableHead className="w-[130px] text-zinc-600">Marca</TableHead>
 
-            <TableHead className="w-[240px]">
-              <SortButton
-                label="Fornecedor"
-                column="fornecedor"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-            </TableHead>
+    <TableHead className="w-[240px]">
+      <SortButton
+        label="Fornecedor"
+        column="fornecedor"
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+      />
+    </TableHead>
 
-            <TableHead className="w-[120px] text-zinc-600">Localização</TableHead>
+    <TableHead className="w-[120px] text-zinc-600">Localização</TableHead>
 
-            <TableHead className="w-[100px]">
-              <SortButton
-                label="Estoque"
-                column="estoqueAtual"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-            </TableHead>
+    <TableHead className="w-[100px]">
+      <SortButton
+        label="Estoque"
+        column="estoqueAtual"
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+      />
+    </TableHead>
 
-            <TableHead className="w-[120px]">
-              <SortButton
-                label="Preço"
-                column="preco"
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-            </TableHead>
+    <TableHead className="w-[110px]">
+      <SortButton
+        label="Preço"
+        column="preco"
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+      />
+    </TableHead>
 
-            <TableHead className="w-[90px] text-zinc-600">Status</TableHead>
-            <TableHead className="w-[130px] text-right text-zinc-600">Ações</TableHead>
-          </TableRow>
+    <TableHead className="w-[90px] text-zinc-600">Status</TableHead>
+
+    <TableHead className="w-[120px] text-right text-zinc-600">Ações</TableHead>
+  </TableRow>
         </TableHeader>
 
         <TableBody>
@@ -2894,47 +2895,52 @@ function ProductsPage({
               key={item.id}
               className="border-zinc-100 bg-white hover:bg-zinc-50/60"
             >
-              <TableCell className="whitespace-nowrap font-semibold text-zinc-950">
-                {item.codigo}
+              <TableCell className="w-[90px] truncate font-semibold text-zinc-950">
+  {item.codigo}
               </TableCell>
 
-              <TableCell className="font-medium text-zinc-900">
-                <div className="max-w-[250px] truncate" title={item.nome}>
+              <TableCell className="w-[320px]">
+                <div
+                  className="max-w-[300px] truncate font-medium text-zinc-900"
+                  title={item.nome}
+                >
                   {item.nome}
                 </div>
-              </TableCell>
+            </TableCell>
 
-              <TableCell className="text-zinc-700">
-                <div className="max-w-[150px] truncate" title={item.categoria}>
+              <TableCell className="w-[150px]">
+                <div className="max-w-[130px] truncate text-zinc-700" title={item.categoria}>
                   {item.categoria}
                 </div>
               </TableCell>
 
-              <TableCell className="text-zinc-700">
-                <div className="max-w-[120px] truncate" title={item.marca}>
-                  {item.marca || "-"}
+              <TableCell className="w-[130px]">
+                <div className="max-w-[110px] truncate text-zinc-700" title={item.marca}>
+                  {item.marca}
                 </div>
               </TableCell>
 
-              <TableCell className="text-zinc-700">
-                <div className="max-w-[230px] truncate" title={item.fornecedor}>
-                  {item.fornecedor || "-"}
+              <TableCell className="w-[220px]">
+                <div className="max-w-[200px] truncate text-zinc-700" title={item.fornecedor}>
+                  {item.fornecedor}
                 </div>
               </TableCell>
 
-              <TableCell className="whitespace-nowrap text-zinc-700">
-                {item.localizacao || "-"}
+              <TableCell className="w-[120px]">
+                <div className="max-w-[100px] truncate text-zinc-700" title={item.localizacao}>
+                  {item.localizacao}
+                </div>
               </TableCell>
 
-              <TableCell className="whitespace-nowrap font-medium text-zinc-900">
+              <TableCell className="w-[100px] font-medium text-zinc-900">
                 {item.estoqueAtual}
               </TableCell>
 
-              <TableCell className="whitespace-nowrap font-medium text-zinc-900">
-                {formatMoney(item.preco)}
+              <TableCell className="w-[110px] whitespace-nowrap font-medium text-zinc-900">
+                R$ {item.preco.toFixed(2)}
               </TableCell>
 
-              <TableCell>
+              <TableCell className="w-[90px]">
                 {item.status === "baixo" ? (
                   <Badge className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-50">
                     Baixo
@@ -2946,8 +2952,8 @@ function ProductsPage({
                 )}
               </TableCell>
 
-              <TableCell>
-                <div className="flex justify-end">
+              <TableCell className="w-[120px]">
+                <div className="flex justify-end gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -5044,60 +5050,8 @@ function SuppliersPage({ isAdmin }: { isAdmin: boolean }) {
 }, []);
 
 useEffect(() => {
-  let isMounted = true;
-
-  const timer = window.setTimeout(() => {
-    if (isMounted) {
-      void loadSuppliers();
-    }
-  }, 0);
-
-  return () => {
-    isMounted = false;
-    window.clearTimeout(timer);
-  };
+  void loadSuppliers();
 }, [loadSuppliers]);
-useEffect(() => {
-  const timeoutId = window.setTimeout(() => {
-    void loadSuppliers();
-  }, 0);
-
-  return () => {
-    window.clearTimeout(timeoutId);
-  };
-}, [loadSuppliers]);
-
-useEffect(() => {
-  let active = true;
-
-  queueMicrotask(() => {
-    if (active) {
-      void loadSuppliers();
-    }
-  });
-
-  return () => {
-    active = false;
-  };
-}, [loadSuppliers]);
-
-useEffect(() => {
-  let active = true;
-
-  queueMicrotask(() => {
-    if (active) {
-      void loadSuppliers();
-    }
-  });
-
-  return () => {
-    active = false;
-  };
-}, [loadSuppliers]);
-
-  useEffect(() => {
-    loadSuppliers();
-  }, []);
 
   const activeSuppliers = useMemo(() => {
     return suppliers.filter((supplier) => supplier.ativo);
@@ -5946,33 +5900,8 @@ function CustomersPage({ isAdmin }: { isAdmin: boolean }) {
 }, []);
 
 useEffect(() => {
-  let isMounted = true;
-
-  const timer = window.setTimeout(() => {
-    if (isMounted) {
-      void loadCustomers();
-    }
-  }, 0);
-
-  return () => {
-    isMounted = false;
-    window.clearTimeout(timer);
-  };
+  void loadCustomers();
 }, [loadCustomers]);
-
-useEffect(() => {
-  const timeoutId = window.setTimeout(() => {
-    void loadCustomers();
-  }, 0);
-
-  return () => {
-    window.clearTimeout(timeoutId);
-  };
-}, [loadCustomers]);
-
-  useEffect(() => {
-    loadCustomers();
-  }, []);
 
   const activeCustomers = useMemo(() => {
     return customers.filter((customer) => customer.ativo);
