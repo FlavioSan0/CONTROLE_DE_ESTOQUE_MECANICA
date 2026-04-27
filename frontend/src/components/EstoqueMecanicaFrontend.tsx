@@ -5049,8 +5049,14 @@ function SuppliersPage({ isAdmin }: { isAdmin: boolean }) {
   }
 }, []);
 
-useEffect(() => {
-  void loadSuppliers();
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void loadSuppliers();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
 }, [loadSuppliers]);
 
   const activeSuppliers = useMemo(() => {
@@ -5899,8 +5905,14 @@ function CustomersPage({ isAdmin }: { isAdmin: boolean }) {
   }
 }, []);
 
-useEffect(() => {
-  void loadCustomers();
+  useEffect(() => {
+  const timeoutId = window.setTimeout(() => {
+    void loadCustomers();
+  }, 0);
+
+  return () => {
+    window.clearTimeout(timeoutId);
+  };
 }, [loadCustomers]);
 
   const activeCustomers = useMemo(() => {
